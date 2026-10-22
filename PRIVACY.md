@@ -10,6 +10,8 @@ Phone Whisper supports two transcription modes.
 
 In local mode, audio is processed on-device using local speech recognition models. Audio does not leave the device.
 
+Models are downloaded only when you choose to download them, from GitHub (sherpa-onnx releases) or Hugging Face (Parakeet Ultra). These downloads contain no audio or text.
+
 ### Cloud mode
 
 In cloud mode, recorded audio is sent directly from the device to the transcription API of the provider you select, OpenAI or OpenRouter, to generate text.

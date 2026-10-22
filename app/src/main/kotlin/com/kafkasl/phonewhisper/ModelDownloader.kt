@@ -34,6 +34,15 @@ val MODEL_CATALOG = listOf(
         199, "★★★"),
     Model("Parakeet 0.6B", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
         465, "★★★★ Best quality"),
+    Model("Parakeet Ultra", "sherpa-onnx-parakeet-ultra-int8",
+        600, "★★★★★ Most accurate",
+        baseUrl = "https://huggingface.co/mldecode/parakeet-ultra-onnx-int8/resolve/3282a6e32885b431c1543d58c7710e6e3412eac0",
+        files = listOf(
+            ModelFile("encoder.int8.onnx", 611_879_344, "181382735a719c75076d13658dc4418de4b566aef39935ca0f8f55da16928f4e"),
+            ModelFile("decoder.int8.onnx", 12_257_685, "0ba8ace2de04bb2d9a6b20ed2d67138c23df4a385f268438df0ff200502de77a"),
+            ModelFile("joiner.int8.onnx", 5_281_747, "20ae4350c2484ba607d94f08ef25ae3ead762d8aaf70753758ffcc504e255ebb"),
+            ModelFile("tokens.txt", 93_939, "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"),
+        )),
     Model("Moonshine Tiny", "sherpa-onnx-moonshine-tiny-en-int8",
         103, "★★☆ Fast"),
 )

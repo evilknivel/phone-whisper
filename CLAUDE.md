@@ -50,7 +50,7 @@ Prefs keys: `use_local`, `model_name`, `use_post_processing`, `post_processing_p
 
 ### Local models
 
-- `ModelDownloader.MODEL_CATALOG` lists the models. Each `archive` name is the base name of a `.tar.bz2` file in the sherpa-onnx GitHub `asr-models` release. Each archive is downloaded and extracted into `filesDir/models/<archive>/`; `extractTarBz2` guards against path traversal.
+- `ModelDownloader.MODEL_CATALOG` lists the models. For most entries, the `archive` name is the base name of a `.tar.bz2` file in the sherpa-onnx GitHub `asr-models` release. Each archive is downloaded and extracted into `filesDir/models/<archive>/`; `extractTarBz2` guards against path traversal. Entries with `files` (currently Parakeet Ultra from Hugging Face) are instead fetched file by file from `baseUrl` (pin it to a commit) into a staging dir. Each file's SHA-256 is checked, and the dir is moved to `models/<archive>/` only when all of them match.
 - `LocalTranscriber.detectModelConfig` works out the model type from the files in the directory: `preprocess.onnx` means Moonshine; encoder+decoder without a joiner means Whisper; encoder+decoder+joiner means a NeMo transducer/Parakeet; a single `model*.onnx` means NeMo CTC. It prefers `int8` files. To add a new model family, you need a new branch here.
 
 ### sherpa-onnx bindings
