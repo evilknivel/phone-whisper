@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Phone Whisper is a single-module Android app (Kotlin, package `com.kafkasl.phonewhisper`, minSdk 30, targetSdk 34, JDK 17, arm64-v8a only). It shows a floating push-to-talk overlay button, records audio, transcribes it locally (sherpa-onnx) or via OpenAI Whisper, optionally cleans up the text with an OpenAI chat model, and inserts the result into the focused text field of whatever app is in the foreground.
+Phone Whisper is a single-module Android app (Kotlin, package `com.kafkasl.phonewhisper`, minSdk 30, targetSdk 34, JDK 17, arm64-v8a only). It shows a floating push-to-talk overlay button, records audio, transcribes it locally (sherpa-onnx) or in the cloud (OpenAI or OpenRouter), optionally cleans up the text with a chat model (OpenAI or OpenRouter), and inserts the result into the focused text field of whatever app is in the foreground.
 
 ## Commands
 
@@ -33,16 +33,20 @@ There is no lint or format configuration. Unit tests are plain JVM JUnit 4 tests
 
 There are only two Android components (see `AndroidManifest.xml`). They share state through `SharedPreferences("phonewhisper")`.
 
-- **`MainActivity`** is the settings/setup screen. The whole UI is built programmatically in Kotlin; there are no layout XML files. It handles permissions, the accessibility-service link, the local/cloud toggle, the API key, model download/select/delete, and post-processing prompt presets. It writes prefs and calls `WhisperAccessibilityService.instance?.reloadModel()` when the selected model changes.
+- **`MainActivity`** is the settings/setup screen. The whole UI is built programmatically in Kotlin; there are no layout XML files. It handles permissions, the accessibility-service link, the local/cloud toggle, provider/model choice, the API keys, model download/select/delete, and post-processing prompt presets. It writes prefs and calls `WhisperAccessibilityService.instance?.reloadModel()` when the selected model changes.
 - **`WhisperAccessibilityService`** is where the app actually runs. On `onServiceConnected` it loads the local model and adds a `TYPE_ACCESSIBILITY_OVERLAY` button. A small state machine (`IDLE → RECORDING → TRANSCRIBING`) drives the pipeline:
   1. `AudioRecord` captures 16 kHz mono PCM16 into a `ByteArrayOutputStream` on a background thread.
-  2. Local mode (`use_local` pref, and a model is loaded): PCM is converted to floats and passed to `LocalTranscriber`. Cloud mode, or local mode with no model loaded: `WavWriter.encode` wraps the PCM, and `TranscriberClient` posts it to `/v1/audio/transcriptions` (`whisper-1`).
-  3. If `use_post_processing` is set: `PostProcessor` sends the text to `/v1/chat/completions` (`gpt-4o-mini`, temperature 0) with the selected prompt. If that call fails, the raw text is used.
+  2. Local mode (`use_local` pref, and a model is loaded): PCM is converted to floats and passed to `LocalTranscriber`. Cloud mode, or local mode with no model loaded: `WavWriter.encode` wraps the PCM, and `TranscriberClient` sends it to the provider from `transcriptionTarget()`. OpenAI gets multipart `whisper-1`. OpenRouter gets JSON with base64 audio under `input_audio`; its STT endpoint is **not** OpenAI-compatible.
+  3. If `use_post_processing` is set: `PostProcessor` sends the text to the chat-completions endpoint of the provider from `postProcessingTarget()` (temperature 0) with the selected prompt. Both providers share the OpenAI request/response format. If that call fails, the raw text is used.
   4. `injectText` always copies the text to the clipboard first. It then searches the accessibility tree for candidate editable nodes (scored), and tries `ACTION_PASTE`, a custom paste action, and finally `ACTION_SET_TEXT` on each candidate.
   
   Callbacks come back on OkHttp or worker threads. UI and state changes are posted to the main `handler`.
 
-Prefs keys: `use_local`, `api_key`, `model_name`, `use_post_processing`, `post_processing_prompt`, `custom_post_processing_prompt`.
+Prefs keys: `use_local`, `model_name`, `use_post_processing`, `post_processing_prompt`, `custom_post_processing_prompt`, plus the cloud settings `api_key` (OpenAI), `openrouter_api_key`, `transcription_provider` / `post_processing_provider` (`openai`|`openrouter`), and `openrouter_transcription_model` / `openrouter_post_processing_model`.
+
+### Cloud providers
+
+`CloudProvider.kt` turns prefs into a `CloudTarget(provider, apiKey, model)` via `SharedPreferences.transcriptionTarget()` and `postProcessingTarget()`. Both the service and `MainActivity` (for the ready check) use them. Model selection exists only for OpenRouter; OpenAI stays on `whisper-1` / `gpt-4o-mini`. The model picker loads OpenRouter's public `/models` list (`OpenRouter.listModels`, filtered by output modality `transcription` or `text`) and falls back to the presets in `CloudProvider.kt` plus free-text input.
 
 ### Local models
 
