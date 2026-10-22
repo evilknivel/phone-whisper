@@ -23,7 +23,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    testOptions { unitTests { isIncludeAndroidResources = true } }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            // android.util.Log etc. return defaults instead of throwing in JVM tests.
+            isReturnDefaultValues = true
+            // Opt-in JNI integration test, see LocalTranscriberIntegrationTest.
+            all { test -> System.getenv("SHERPA_JNI_DIR")?.let { test.systemProperty("java.library.path", it) } }
+        }
+    }
 }
 
 kotlin {

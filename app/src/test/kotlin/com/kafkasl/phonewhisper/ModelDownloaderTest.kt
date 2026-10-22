@@ -69,6 +69,47 @@ class ModelDownloaderTest {
         assertEquals(3L, progress)
     }
 
+    @Test fun `rejects traversal into a sibling dir with the same prefix`() {
+        withTempDir { tmp ->
+            val archive = File(tmp, "evil.tar.bz2")
+            writeTarBz2(archive, mapOf("../out-evil/x.txt" to "gotcha"))
+
+            assertThrows(IllegalArgumentException::class.java) {
+                ModelDownloader.extractTarBz2(archive, File(tmp, "out"))
+            }
+        }
+    }
+
+    @Test fun `installs an extracted archive atomically with a marker`() {
+        withTempDir { tmp ->
+            val archive = File(tmp, "m.tar.bz2")
+            writeTarBz2(archive, mapOf(
+                "./mymodel/tokens.txt" to "a",
+                "./mymodel/model.int8.onnx" to "x",
+            ))
+            val staging = File(tmp, "staging")
+            val target = File(tmp, "models/mymodel")
+            ModelDownloader.extractTarBz2(archive, staging)
+            ModelDownloader.installArchive(staging, "mymodel", target)
+
+            assertTrue(File(target, ModelDownloader.INSTALLED_MARKER).exists())
+            assertEquals("a", File(target, "tokens.txt").readText())
+        }
+    }
+
+    @Test fun `refuses to install an archive without a usable model`() {
+        withTempDir { tmp ->
+            val staging = File(tmp, "staging/mymodel").apply { mkdirs() }
+            File(staging, "encoder.onnx").writeText("partial")
+            val target = File(tmp, "models/mymodel")
+
+            assertThrows(java.io.IOException::class.java) {
+                ModelDownloader.installArchive(File(tmp, "staging"), "mymodel", target)
+            }
+            assertFalse(target.exists())
+        }
+    }
+
     // -- helpers --
 
     private fun withTempDir(block: (File) -> Unit) {

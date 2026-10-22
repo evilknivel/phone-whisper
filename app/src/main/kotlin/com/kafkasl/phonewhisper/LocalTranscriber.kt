@@ -7,46 +7,59 @@ import java.io.File
 
 /**
  * Local on-device transcription via sherpa-onnx.
- * Models are loaded from the app's external files dir.
+ * Models are loaded from the app's files/models/ dir. Not thread-safe: callers must not
+ * [release] while [transcribe] is running.
  */
 class LocalTranscriber private constructor(private val recognizer: OfflineRecognizer) {
 
     /** Transcribe raw PCM float samples. Blocking — call from background thread. */
     fun transcribe(samples: FloatArray, sampleRate: Int = 16000): String {
         val stream = recognizer.createStream()
-        stream.acceptWaveform(samples, sampleRate)
-        recognizer.decode(stream)
-        val result = recognizer.getResult(stream)
-        stream.release()
-        return result.text.trim()
+        try {
+            stream.acceptWaveform(samples, sampleRate)
+            recognizer.decode(stream)
+            return recognizer.getResult(stream).text.trim()
+        } finally {
+            stream.release()
+        }
     }
+
+    /** Free the native recognizer. A model like Parakeet Ultra holds several hundred MB. */
+    fun release() = recognizer.release()
 
     companion object {
         private const val TAG = "LocalTranscriber"
 
-        /** Find available model dirs under the app's files/models/ dir */
-        fun availableModels(ctx: Context): List<String> {
-            val modelsDir = File(ctx.filesDir, "models")
-            if (!modelsDir.exists()) return emptyList()
-            return modelsDir.listFiles()?.filter { it.isDirectory }?.map { it.name } ?: emptyList()
-        }
+        /** Default CPU threads for decoding: 4, or fewer on phones with fewer cores. */
+        val DEFAULT_THREADS get() = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
 
-        /** Create a LocalTranscriber for the given model directory name. Returns null on failure. */
-        fun create(ctx: Context, modelName: String): LocalTranscriber? {
-            val modelDir = File(ctx.filesDir, "models/$modelName")
-            if (!modelDir.exists()) {
+        fun modelsDir(ctx: Context) = File(ctx.filesDir, "models")
+
+        /** Model dir names under files/models/ that contain a recognizable model. */
+        fun availableModels(ctx: Context): List<String> =
+            modelsDir(ctx).listFiles()
+                ?.filter { it.isDirectory && hasModelFiles(it) }
+                ?.map { it.name }
+                ?.sorted()
+                ?: emptyList()
+
+        fun hasModelFiles(dir: File) = detectModelConfig(dir, 1) != null
+
+        /** Create a LocalTranscriber for the given model directory. Returns null on failure. */
+        fun create(modelDir: File, numThreads: Int): LocalTranscriber? {
+            if (!modelDir.isDirectory) {
                 Log.e(TAG, "Model dir not found: $modelDir")
                 return null
             }
 
-            val config = detectModelConfig(modelDir) ?: run {
+            val config = detectModelConfig(modelDir, numThreads) ?: run {
                 Log.e(TAG, "Could not detect model type in $modelDir")
                 return null
             }
 
             return try {
                 val recognizer = OfflineRecognizer(assetManager = null, config = config)
-                Log.i(TAG, "Loaded model: $modelName")
+                Log.i(TAG, "Loaded model: ${modelDir.name} ($numThreads threads)")
                 LocalTranscriber(recognizer)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load model: ${e.message}")
@@ -55,10 +68,9 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
         }
 
         /** Auto-detect model type from files present in the directory. */
-        private fun detectModelConfig(dir: File): OfflineRecognizerConfig? {
+        fun detectModelConfig(dir: File, numThreads: Int): OfflineRecognizerConfig? {
             val p = dir.absolutePath
-            val tokens = "$p/tokens.txt"
-            if (!File(tokens).exists()) return null
+            val tokens = findTokens(dir) ?: return null
 
             // Moonshine (has preprocess.onnx)
             if (File("$p/preprocess.onnx").exists()) {
@@ -71,32 +83,30 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
                             cachedDecoder = findFile(p, "cached_decode") ?: return null,
                         ),
                         tokens = tokens,
-                        numThreads = 2,
+                        numThreads = numThreads,
                     )
                 )
             }
 
             // Whisper (has encoder + decoder, no joiner)
-            val whisperEncoder = findFile(p, "encoder")
-            val whisperDecoder = findFile(p, "decoder")
-            if (whisperEncoder != null && whisperDecoder != null && findFile(p, "joiner") == null) {
+            val encoder = findFile(p, "encoder")
+            val decoder = findFile(p, "decoder")
+            val joiner = findFile(p, "joiner")
+            if (encoder != null && decoder != null && joiner == null) {
                 return OfflineRecognizerConfig(
                     modelConfig = OfflineModelConfig(
                         whisper = OfflineWhisperModelConfig(
-                            encoder = whisperEncoder,
-                            decoder = whisperDecoder,
+                            encoder = encoder,
+                            decoder = decoder,
                         ),
                         tokens = tokens,
-                        numThreads = 2,
+                        numThreads = numThreads,
                         modelType = "whisper",
                     )
                 )
             }
 
             // NeMo transducer / Parakeet TDT (has encoder + decoder + joiner)
-            val encoder = findFile(p, "encoder")
-            val decoder = findFile(p, "decoder")
-            val joiner = findFile(p, "joiner")
             if (encoder != null && decoder != null && joiner != null) {
                 return OfflineRecognizerConfig(
                     modelConfig = OfflineModelConfig(
@@ -106,7 +116,7 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
                             joiner = joiner,
                         ),
                         tokens = tokens,
-                        numThreads = 2,
+                        numThreads = numThreads,
                         modelType = "nemo_transducer",
                     )
                 )
@@ -119,7 +129,7 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
                     modelConfig = OfflineModelConfig(
                         nemo = OfflineNemoEncDecCtcModelConfig(model = ctcModel),
                         tokens = tokens,
-                        numThreads = 2,
+                        numThreads = numThreads,
                     )
                 )
             }
@@ -127,16 +137,24 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
             return null
         }
 
-        /** Find first file matching prefix (prefer int8 quantized). */
-        private fun findFile(dir: String, prefix: String): String? {
-            val d = File(dir)
-            // Prefer int8 quantized
-            d.listFiles()?.firstOrNull { it.name.startsWith(prefix) && it.name.contains("int8") }
-                ?.let { return it.absolutePath }
-            // Fallback to any onnx/ort
-            return d.listFiles()?.firstOrNull {
-                it.name.startsWith(prefix) && (it.name.endsWith(".onnx") || it.name.endsWith(".ort"))
-            }?.absolutePath
+        /** `tokens.txt`, or `<name>-tokens.txt` as in the sherpa-onnx Whisper archives. */
+        private fun findTokens(dir: File): String? =
+            dir.listFiles()
+                ?.filter { it.name == "tokens.txt" || it.name.endsWith("-tokens.txt") }
+                ?.minByOrNull { it.name.length }
+                ?.absolutePath
+
+        /**
+         * Find first .onnx/.ort file named `<part>...` or `<name>-<part>...` (the Whisper archives
+         * use `base.en-encoder.int8.onnx`), preferring int8 quantized files.
+         */
+        private fun findFile(dir: String, part: String): String? {
+            val files = File(dir).listFiles()
+                ?.filter { (it.name.startsWith(part) || it.name.contains("-$part")) &&
+                    (it.name.endsWith(".onnx") || it.name.endsWith(".ort")) }
+                ?.sortedBy { it.name }
+                ?: return null
+            return (files.firstOrNull { it.name.contains("int8") } ?: files.firstOrNull())?.absolutePath
         }
     }
 }

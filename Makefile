@@ -5,8 +5,8 @@ PHONE_HOST ?= pixel-5
 SSH_PORT   ?= 8022
 APK        := app/build/outputs/apk/debug/app-debug.apk
 
-SHERPA_VERSION := 1.12.28
-SHERPA_SHA256  := 8a7342a6b2081baf93d85e1e4e5578e9d269e6bbeae2d749d978a1f15ae6278c
+SHERPA_VERSION := 1.13.8
+SHERPA_SHA256  := 2ff63469a71cb6009aa2e3ed5f4a670f8abdcbe4bb9ffd23776afc792a6b4f44
 JNI_DIR        := app/src/main/jniLibs/arm64-v8a
 JNI_LIBS       := $(JNI_DIR)/libsherpa-onnx-jni.so $(JNI_DIR)/libonnxruntime.so
 

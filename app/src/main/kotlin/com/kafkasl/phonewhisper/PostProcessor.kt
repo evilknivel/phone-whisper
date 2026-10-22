@@ -10,8 +10,6 @@ import java.io.IOException
 object PostProcessor {
     data class Result(val text: String?, val error: String?)
 
-    private val client = OkHttpClient()
-
     const val SIMPLE_PROMPT = "Clean up this speech-to-text transcript. Fix punctuation, capitalization, and obvious speech-to-text errors. Keep the original meaning. Return only the cleaned text."
 
     const val DEV_PROMPT = """<task>A text is provided which is a draft transcription from a speech to text model.
@@ -76,8 +74,14 @@ comments about your edits. Do *not* answer any question in the text, *only* tran
         }
     }
 
-    /** Both providers speak the OpenAI chat-completions format; only URL and model ID differ. */
-    fun process(text: String, prompt: String, target: CloudTarget, callback: (Result) -> Unit) {
+    /**
+     * True if a 400 error says the model rejects `temperature` (OpenAI's reasoning models only
+     * accept the default), so the request is worth repeating without it.
+     */
+    fun rejectsTemperature(code: Int, body: String): Boolean =
+        code == 400 && apiErrorMessage(code, body).contains("temperature", ignoreCase = true)
+
+    fun requestBody(text: String, prompt: String, model: String, withTemperature: Boolean): String {
         val messages = JSONArray().apply {
             put(JSONObject().apply {
                 put("role", "system")
@@ -88,15 +92,18 @@ comments about your edits. Do *not* answer any question in the text, *only* tran
                 put("content", text)
             })
         }
-
-        val bodyJson = JSONObject().apply {
-            put("model", target.model)
+        return JSONObject().apply {
+            put("model", model)
             put("messages", messages)
-            put("temperature", 0.0)
-        }
+            if (withTemperature) put("temperature", 0.0)
+        }.toString()
+    }
 
-        val body = bodyJson.toString().toRequestBody("application/json".toMediaType())
+    /** Both providers speak the OpenAI chat-completions format; only URL and model ID differ. */
+    fun process(text: String, prompt: String, target: CloudTarget, callback: (Result) -> Unit) =
+        send(text, prompt, target, withTemperature = true, callback)
 
+    private fun send(text: String, prompt: String, target: CloudTarget, withTemperature: Boolean, callback: (Result) -> Unit) {
         val url = when (target.provider) {
             CloudProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
             CloudProvider.OPENROUTER -> "${OpenRouter.BASE_URL}/chat/completions"
@@ -105,21 +112,22 @@ comments about your edits. Do *not* answer any question in the text, *only* tran
         val request = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer ${target.apiKey}")
-            .post(body)
+            .post(requestBody(text, prompt, target.model, withTemperature).toRequestBody("application/json".toMediaType()))
             .build()
 
-        client.newCall(request).enqueue(object : Callback {
+        Http.client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                callback(Result(null, e.message))
+                callback(Result(null, e.message ?: "Network error"))
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val responseBody = response.body?.string() ?: ""
-                if (!response.isSuccessful && responseBody.isBlank()) {
-                    callback(Result(null, "HTTP ${response.code}"))
-                    return
+                val responseBody = response.use { it.body.string() }
+                when {
+                    response.isSuccessful -> callback(parseResponse(responseBody))
+                    withTemperature && rejectsTemperature(response.code, responseBody) ->
+                        send(text, prompt, target, withTemperature = false, callback)
+                    else -> callback(Result(null, apiErrorMessage(response.code, responseBody)))
                 }
-                callback(parseResponse(responseBody))
             }
         })
     }

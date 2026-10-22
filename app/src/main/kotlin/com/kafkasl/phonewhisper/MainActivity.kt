@@ -12,16 +12,19 @@ import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.radiobutton.MaterialRadioButton
-import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -40,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var promptRowSub: TextView
     private lateinit var promptRow: LinearLayout
     private lateinit var modelContainer: LinearLayout
+    private lateinit var threadsRowSub: TextView
     private lateinit var promptContainer: LinearLayout
 
     private val modelRows = mutableMapOf<String, ModelRowViews>()
@@ -49,8 +53,13 @@ class MainActivity : AppCompatActivity() {
         val radio: MaterialRadioButton,
         val progress: LinearProgressIndicator,
         val subtitle: TextView,
-        val dlBtn: MaterialButton
+        val dlBtn: MaterialButton,
+        val deleteBtn: MaterialButton
     )
+
+    private val downloadListener: (Model, DownloadState) -> Unit = { model, state ->
+        runOnUiThread { onDownloadState(model, state) }
+    }
 
     private data class PromptRowViews(
         val radio: MaterialRadioButton,
@@ -66,7 +75,7 @@ class MainActivity : AppCompatActivity() {
         val header = TextView(this).apply {
             text = "Phone Whisper"
             textSize = 32f
-            setPadding(dp(24), dp(64), dp(24), dp(24))
+            setPadding(dp(24), dp(32), dp(24), dp(24))
         }
         root.addView(header)
 
@@ -104,6 +113,8 @@ class MainActivity : AppCompatActivity() {
             val newCloud = !cloudSwitch.isChecked
             prefs().edit().putBoolean("use_local", !newCloud).apply()
             cloudSwitch.isChecked = newCloud
+            // Loads the local model, or frees it in cloud mode.
+            WhisperAccessibilityService.instance?.reloadModel()
             refresh()
         }
         root.addView(cloudRow)
@@ -115,10 +126,7 @@ class MainActivity : AppCompatActivity() {
         transProviderSub = transProviderRow.findViewWithTag("subtitle")
         cloudContainer.addView(transProviderRow)
         transModelRow = settingsRow("Transcription model", "") {
-            pickOpenRouterModel(
-                "openrouter_transcription_model", "Transcription model", "transcription",
-                DEFAULT_OPENROUTER_TRANSCRIPTION_MODEL, OPENROUTER_TRANSCRIPTION_PRESETS
-            )
+            pickModel(CloudTask.TRANSCRIPTION, "Transcription model")
         }
         transModelSub = transModelRow.findViewWithTag("subtitle")
         cloudContainer.addView(transModelRow)
@@ -128,6 +136,9 @@ class MainActivity : AppCompatActivity() {
         modelContainer = vertical(0)
         modelContainer.addView(sectionHeader("Local models"))
         for (m in MODEL_CATALOG) modelContainer.addView(buildModelRow(m))
+        val threadsRow = settingsRow("CPU threads", "") { chooseThreads() }
+        threadsRowSub = threadsRow.findViewWithTag("subtitle")
+        modelContainer.addView(threadsRow)
         root.addView(modelContainer)
 
         // --- Post-Processing Section ---
@@ -153,10 +164,7 @@ class MainActivity : AppCompatActivity() {
         ppProviderSub = ppProviderRow.findViewWithTag("subtitle")
         promptContainer.addView(ppProviderRow)
         ppModelRow = settingsRow("Cleanup model", "") {
-            pickOpenRouterModel(
-                "openrouter_post_processing_model", "Cleanup model", "text",
-                DEFAULT_OPENROUTER_POST_PROCESSING_MODEL, OPENROUTER_POST_PROCESSING_PRESETS
-            )
+            pickModel(CloudTask.POST_PROCESSING, "Cleanup model")
         }
         ppModelSub = ppModelRow.findViewWithTag("subtitle")
         promptContainer.addView(ppModelRow)
@@ -172,18 +180,26 @@ class MainActivity : AppCompatActivity() {
         // --- Settings Section ---
         root.addView(sectionHeader("Settings"))
         
-        val keyRow = settingsRow("OpenAI API Key", "Tap to set") { promptApiKey(CloudProvider.OPENAI, "sk-...") }
+        val keyRow = settingsRow("OpenAI API Key", "Tap to set") { promptApiKey(CloudProvider.OPENAI) }
         keyRowSub = keyRow.findViewWithTag("subtitle")
         root.addView(keyRow)
 
-        val orKeyRow = settingsRow("OpenRouter API Key", "Tap to set") { promptApiKey(CloudProvider.OPENROUTER, "sk-or-...") }
+        val orKeyRow = settingsRow("OpenRouter API Key", "Tap to set") { promptApiKey(CloudProvider.OPENROUTER) }
         orKeyRowSub = orKeyRow.findViewWithTag("subtitle")
         root.addView(orKeyRow)
 
-        setContentView(ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             setBackgroundColor(attrColor(android.R.attr.colorBackground))
+            clipToPadding = false
             addView(root)
-        })
+        }
+        // targetSdk 35+ draws edge-to-edge: keep content clear of the status and navigation bars.
+        ViewCompat.setOnApplyWindowInsetsListener(scroll) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+        setContentView(scroll)
 
         if (!hasPerm(Manifest.permission.RECORD_AUDIO)) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
@@ -192,7 +208,16 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
-    override fun onResume() { super.onResume(); refresh() }
+    override fun onResume() {
+        super.onResume()
+        ModelDownloader.addListener(downloadListener)
+        refresh()
+    }
+
+    override fun onPause() {
+        ModelDownloader.removeListener(downloadListener)
+        super.onPause()
+    }
     override fun onRequestPermissionsResult(c: Int, p: Array<String>, r: IntArray) {
         super.onRequestPermissionsResult(c, p, r); refresh()
     }
@@ -207,7 +232,16 @@ class MainActivity : AppCompatActivity() {
         val dlBtn = MaterialButton(this, null, com.google.android.material.R.attr.materialIconButtonStyle).apply {
             text = "↓"
             textSize = 18f
+            contentDescription = "Download ${model.name}"
             setTextColor(attrColor(androidx.appcompat.R.attr.colorPrimary))
+            setOnClickListener { onModelAction(model) }
+        }
+        val deleteBtn = MaterialButton(this, null, com.google.android.material.R.attr.materialIconButtonStyle).apply {
+            text = "✕"
+            textSize = 16f
+            contentDescription = "Delete ${model.name}"
+            setTextColor(attrColor(android.R.attr.textColorSecondary))
+            setOnClickListener { confirmDelete(model) }
         }
         
         val progress = LinearProgressIndicator(this).apply {
@@ -221,11 +255,12 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(dlBtn)
+            addView(deleteBtn)
             addView(radio)
         }
 
         val row = settingsRow(
-            if (model.recommended) model.name else model.name,
+            model.name,
             "${model.quality} · ${model.sizeMb} MB",
             rightContainer
         ) {
@@ -236,7 +271,7 @@ class MainActivity : AppCompatActivity() {
         textContainer.addView(progress)
         
         modelRows[model.archive] = ModelRowViews(
-            radio, progress, textContainer.findViewWithTag("subtitle"), dlBtn
+            radio, progress, textContainer.findViewWithTag("subtitle"), dlBtn, deleteBtn
         )
         refreshCard(model)
         
@@ -244,42 +279,49 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onModelAction(model: Model) {
-        val views = modelRows[model.archive] ?: return
-
         if (ModelDownloader.isInstalled(this, model)) {
             selectModel(model.archive)
             return
         }
+        if (!ModelDownloader.download(this, model)) {
+            toast("${model.name} is already downloading")
+            return
+        }
+        refreshCard(model)
+    }
 
-        views.dlBtn.isEnabled = false
-        views.progress.visibility = View.VISIBLE
-        views.progress.isIndeterminate = false
-        views.subtitle.text = "Starting download..."
-
-        ModelDownloader.download(this, model) { state ->
-            runOnUiThread {
-                when (state) {
-                    is DownloadState.Downloading -> {
-                        views.progress.progress = (state.progress * 100).toInt()
-                        views.subtitle.text = "Downloading: ${(state.progress * 100).toInt()}%"
-                    }
-                    is DownloadState.Extracting -> {
-                        views.progress.isIndeterminate = true
-                        views.subtitle.text = "Extracting..."
-                    }
-                    is DownloadState.Done -> {
-                        views.progress.visibility = View.GONE
-                        selectModel(model.archive)
-                        toast("${model.name} ready!")
-                    }
-                    is DownloadState.Error -> {
-                        views.progress.visibility = View.GONE
-                        views.subtitle.text = "Error: ${state.message}"
-                        views.dlBtn.isEnabled = true
-                    }
-                }
+    /** Download progress, also for downloads started before this screen was (re)created. */
+    private fun onDownloadState(model: Model, state: DownloadState) {
+        when (state) {
+            is DownloadState.Downloading, is DownloadState.Extracting -> refreshCard(model)
+            is DownloadState.Done -> {
+                selectModel(model.archive)
+                toast("${model.name} ready!")
+            }
+            is DownloadState.Error -> {
+                refreshCard(model)
+                modelRows[model.archive]?.subtitle?.text = "Error: ${state.message}"
             }
         }
+    }
+
+    private fun confirmDelete(model: Model) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Delete ${model.name}?")
+            .setMessage("Frees about ${model.sizeMb} MB. You can download it again later.")
+            .setPositiveButton("Delete") { _, _ ->
+                if (!ModelDownloader.delete(this, model)) {
+                    toast("Could not delete ${model.name}")
+                }
+                if (prefs().getString("model_name", "") == model.archive) {
+                    prefs().edit().remove("model_name").apply()
+                }
+                // refresh() picks another installed model; reload either way to free the deleted one.
+                refresh()
+                WhisperAccessibilityService.instance?.reloadModel()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun selectModel(archive: String) {
@@ -292,13 +334,30 @@ class MainActivity : AppCompatActivity() {
         val views = modelRows[model.archive] ?: return
         val active = prefs().getString("model_name", "") == model.archive
         val installed = ModelDownloader.isInstalled(this, model)
-        
+        val download = ModelDownloader.state(model)
+
         views.radio.isChecked = active
         views.radio.visibility = if (installed) View.VISIBLE else View.GONE
+        views.deleteBtn.visibility = if (installed && download == null) View.VISIBLE else View.GONE
         views.dlBtn.visibility = if (installed) View.GONE else View.VISIBLE
-        
-        if (views.progress.visibility == View.GONE) {
-            views.subtitle.text = "${model.quality} · ${model.sizeMb} MB"
+        views.dlBtn.isEnabled = download == null
+
+        when (download) {
+            is DownloadState.Downloading -> {
+                views.progress.visibility = View.VISIBLE
+                views.progress.isIndeterminate = false
+                views.progress.progress = (download.progress * 100).toInt()
+                views.subtitle.text = "Downloading: ${(download.progress * 100).toInt()}%"
+            }
+            is DownloadState.Extracting -> {
+                views.progress.visibility = View.VISIBLE
+                views.progress.isIndeterminate = true
+                views.subtitle.text = "Installing..."
+            }
+            else -> {
+                views.progress.visibility = View.GONE
+                views.subtitle.text = "${model.quality} · ${model.sizeMb} MB"
+            }
         }
     }
 
@@ -352,7 +411,8 @@ class MainActivity : AppCompatActivity() {
         val usePostProcessing = prefs().getBoolean("use_post_processing", false)
         val transTarget = prefs().transcriptionTarget()
         val ppTarget = prefs().postProcessingTarget()
-        val hasModel = LocalTranscriber.availableModels(this).isNotEmpty()
+        val installedModels = LocalTranscriber.availableModels(this)
+        val hasModel = installedModels.isNotEmpty()
 
         audioRowSub.text = if (audio) "Granted" else "Tap to grant permission"
         accRowSub.text = if (acc) "Enabled" else "Tap to enable in settings"
@@ -360,11 +420,11 @@ class MainActivity : AppCompatActivity() {
         modelContainer.visibility = if (useLocal) View.VISIBLE else View.GONE
         cloudContainer.visibility = if (useLocal) View.GONE else View.VISIBLE
         transProviderSub.text = transTarget.provider.label
-        transModelRow.visibility = if (transTarget.provider == CloudProvider.OPENROUTER) View.VISIBLE else View.GONE
         transModelSub.text = transTarget.model
         ppProviderSub.text = ppTarget.provider.label
-        ppModelRow.visibility = if (ppTarget.provider == CloudProvider.OPENROUTER) View.VISIBLE else View.GONE
         ppModelSub.text = ppTarget.model
+        val threads = prefs().getInt("num_threads", LocalTranscriber.DEFAULT_THREADS)
+        threadsRowSub.text = "$threads of ${Runtime.getRuntime().availableProcessors()} cores · more is faster but uses more battery"
         promptContainer.visibility = if (usePostProcessing) View.VISIBLE else View.GONE
         promptRow.visibility = if (usePostProcessing) View.VISIBLE else View.GONE
 
@@ -375,9 +435,9 @@ class MainActivity : AppCompatActivity() {
         promptRowSub.text = prompt
 
         val cur = prefs().getString("model_name", "") ?: ""
-        if (cur.isBlank() || !File(filesDir, "models/$cur").exists()) {
-            MODEL_CATALOG.firstOrNull { ModelDownloader.isInstalled(this, it) }
-                ?.let { selectModel(it.archive) }
+        if (cur !in installedModels) {
+            (MODEL_CATALOG.map { it.archive }.firstOrNull { it in installedModels } ?: installedModels.firstOrNull())
+                ?.let { selectModel(it) }
         }
 
         // Ready logic
@@ -400,16 +460,50 @@ class MainActivity : AppCompatActivity() {
                else "...***"
     }
 
-    private fun promptApiKey(provider: CloudProvider, hint: String) {
+    /**
+     * The saved key is never shown: the field starts empty and masks its input, the dialog can't
+     * be screenshotted or recorded, and the keyboard is asked not to learn or autofill it.
+     */
+    private fun promptApiKey(provider: CloudProvider) {
+        val saved = prefs().getString(provider.keyPref, "").orEmpty()
         val input = EditText(this).apply {
-            this.hint = hint
-            setText(prefs().getString(provider.keyPref, ""))
+            hint = if (saved.isBlank()) "Paste your API key" else "Saved key ${maskedKey(provider)} — leave empty to keep"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            imeOptions = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            isSingleLine = true
         }
-        android.app.AlertDialog.Builder(this)
+        val builder = android.app.AlertDialog.Builder(this)
             .setTitle("${provider.label} API Key")
             .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
             .setPositiveButton("Save") { _, _ ->
-                prefs().edit().putString(provider.keyPref, input.text.toString().trim()).apply()
+                val key = input.text.toString().trim()
+                if (key.isNotEmpty()) prefs().edit().putString(provider.keyPref, key).apply()
+                refresh()
+            }
+            .setNegativeButton("Cancel", null)
+        if (saved.isNotBlank()) {
+            builder.setNeutralButton("Remove") { _, _ ->
+                prefs().edit().remove(provider.keyPref).apply()
+                refresh()
+            }
+        }
+        builder.create().apply {
+            window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            show()
+        }
+    }
+
+    private fun chooseThreads() {
+        val cores = Runtime.getRuntime().availableProcessors()
+        val current = prefs().getInt("num_threads", LocalTranscriber.DEFAULT_THREADS).coerceIn(1, cores)
+        val options = (1..cores).map { if (it == LocalTranscriber.DEFAULT_THREADS) "$it (default)" else "$it" }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("CPU threads for local models")
+            .setSingleChoiceItems(options.toTypedArray(), current - 1) { dialog, which ->
+                prefs().edit().putInt("num_threads", which + 1).apply()
+                dialog.dismiss()
+                WhisperAccessibilityService.instance?.reloadModel()
                 refresh()
             }
             .setNegativeButton("Cancel", null)
@@ -430,18 +524,24 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Free-text model ID with a filterable list: presets first, replaced by OpenRouter's live model list once loaded. */
-    private fun pickOpenRouterModel(
-        prefKey: String, title: String, outputModality: String, default: String, presets: List<String>
-    ) {
+    /**
+     * Free-text model ID with a filterable list: presets first, replaced by the provider's live
+     * model list once loaded (OpenRouter's is public; OpenAI's needs the API key).
+     */
+    private fun pickModel(task: CloudTask, title: String) {
+        val target = prefs().cloudTarget(task)
+        val provider = target.provider
+        val presets = task.presets(provider)
+        val default = task.defaultModel(provider)
+        val prefKey = task.modelPref(provider)
         var allModels = presets
         val input = EditText(this).apply {
-            hint = "provider/model"
+            hint = if (provider == CloudProvider.OPENROUTER) "provider/model" else "model"
             isSingleLine = true
-            setText(prefs().getString(prefKey, null)?.takeIf { it.isNotBlank() } ?: default)
+            setText(target.model)
         }
         val status = TextView(this).apply {
-            text = "Loading models from OpenRouter..."
+            text = "Loading models from ${provider.label}..."
             textSize = 14f
             setTextColor(attrColor(android.R.attr.textColorSecondary))
             setPadding(0, dp(8), 0, dp(8))
@@ -467,7 +567,7 @@ class MainActivity : AppCompatActivity() {
         }
         input.doAfterTextChanged { edited = true; applyFilter() }
 
-        OpenRouter.listModels(outputModality) { models, error ->
+        val onModels: (List<String>?, String?) -> Unit = { models, error ->
             runOnUiThread {
                 if (!models.isNullOrEmpty()) {
                     allModels = models
@@ -478,9 +578,15 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+        when (provider) {
+            CloudProvider.OPENROUTER -> OpenRouter.listModels(task.outputModality, onModels)
+            CloudProvider.OPENAI ->
+                if (target.apiKey.isBlank()) status.text = "Set an OpenAI API key to load all models."
+                else OpenAiModels.listModels(target.apiKey, task, onModels)
+        }
 
         android.app.AlertDialog.Builder(this)
-            .setTitle(title)
+            .setTitle("$title (${provider.label})")
             .setView(vertical(dp(24), dp(8)).apply {
                 addView(input)
                 addView(status)
@@ -489,6 +595,10 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val model = input.text.toString().trim().ifBlank { default }
                 prefs().edit().putString(prefKey, model).apply()
+                refresh()
+            }
+            .setNeutralButton("Default") { _, _ ->
+                prefs().edit().remove(prefKey).apply()
                 refresh()
             }
             .setNegativeButton("Cancel", null)

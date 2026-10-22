@@ -2,6 +2,7 @@ package com.kafkasl.phonewhisper
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class PostProcessorTest {
@@ -74,5 +75,20 @@ class PostProcessorTest {
             result.error?.contains("JSONObject") == true ||
                 result.error?.contains("must begin with '{'") == true
         )
+    }
+
+    @Test fun `detects models that reject temperature`() {
+        val body = """{"error":{"message":"Unsupported value: 'temperature' does not support 0.0 with this model.","param":"temperature"}}"""
+        assertTrue(PostProcessor.rejectsTemperature(400, body))
+        assertFalse(PostProcessor.rejectsTemperature(401, body))
+        assertFalse(PostProcessor.rejectsTemperature(400, """{"error":{"message":"Invalid model"}}"""))
+    }
+
+    @Test fun `request body only sets temperature when asked`() {
+        val with = org.json.JSONObject(PostProcessor.requestBody("hi", "p", "m", withTemperature = true))
+        val without = org.json.JSONObject(PostProcessor.requestBody("hi", "p", "m", withTemperature = false))
+        assertEquals(0.0, with.getDouble("temperature"), 0.0)
+        assertFalse(without.has("temperature"))
+        assertEquals("hi", without.getJSONArray("messages").getJSONObject(1).getString("content"))
     }
 }
