@@ -109,9 +109,10 @@ Current catalog:
 | Parakeet 110M | 100 MB | Best default |
 | Whisper Base | 199 MB | Solid baseline |
 | Parakeet 0.6B | 465 MB | Best quality |
+| Parakeet Ultra | 600 MB | Most accurate, 25 European languages |
 | Moonshine Tiny | 103 MB | Fastest |
 
-The app downloads and extracts models directly from the sherpa-onnx release archives.
+The app downloads and extracts models directly from the sherpa-onnx release archives. Parakeet Ultra comes as loose files from Hugging Face ([mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8), pinned to a commit), and each file is checked against its SHA-256 before the model is used.
 
 ## Development
 
