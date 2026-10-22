@@ -1,7 +1,12 @@
 name: Release
 
-# Push a tag like v0.4.0 or v0.4.0-beta.1 to build the debug APK and attach it to a
+# Push a tag like v0.4.0 or v0.4.0-beta.1 to build the release APK and attach it to a
 # GitHub release. Tags with a "-" suffix are published as pre-releases.
+#
+# Signing: set the repository secrets RELEASE_KEYSTORE_BASE64 (base64 of a .jks/.keystore
+# file), RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD. Then every
+# release is signed with the same key and installs over the previous one. Without them the
+# APK is signed with a throwaway debug key.
 on:
   push:
     tags: ["v*"]
@@ -19,8 +24,23 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew testDebugUnitTest assembleDebug
-      - run: cp app/build/outputs/apk/debug/app-debug.apk "phone-whisper-${GITHUB_REF_NAME}.apk"
+      - run: make jni-libs
+      - name: Decode signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "RELEASE_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No RELEASE_KEYSTORE_BASE64 secret; the APK is signed with a throwaway debug key."
+          fi
+      - run: ./gradlew testDebugUnitTest assembleRelease
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+      - run: cp app/build/outputs/apk/release/app-release.apk "phone-whisper-${GITHUB_REF_NAME}.apk"
       - uses: softprops/action-gh-release@v2
         with:
           files: phone-whisper-${{ github.ref_name }}.apk

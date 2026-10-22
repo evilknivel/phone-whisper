@@ -12,10 +12,28 @@ android {
         applicationId = "com.kafkasl.phonewhisper"
         minSdk = 30
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.4.0-beta.1"
+        versionCode = 4
+        versionName = "0.4.0-beta.2"
 
         ndk { abiFilters += "arm64-v8a" }
+    }
+
+    // Release builds are signed with a fixed key from the environment (see .github/workflows/release.yml),
+    // so new versions install over old ones. Without it they fall back to the debug key.
+    val releaseKeystore = System.getenv("RELEASE_KEYSTORE_FILE")?.let(::file)?.takeIf { it.exists() }
+    signingConfigs {
+        if (releaseKeystore != null) create("release") {
+            storeFile = releaseKeystore
+            storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+        }
     }
 
     compileOptions {
@@ -29,7 +47,12 @@ android {
             // android.util.Log etc. return defaults instead of throwing in JVM tests.
             isReturnDefaultValues = true
             // Opt-in JNI integration test, see LocalTranscriberIntegrationTest.
-            all { test -> System.getenv("SHERPA_JNI_DIR")?.let { test.systemProperty("java.library.path", it) } }
+            all { test ->
+                System.getenv("SHERPA_JNI_DIR")?.let {
+                    test.systemProperty("java.library.path", it)
+                    test.testLogging.showStandardStreams = true
+                }
+            }
         }
     }
 }
