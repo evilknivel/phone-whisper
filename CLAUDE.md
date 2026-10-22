@@ -1,0 +1,58 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Phone Whisper is a single-module Android app (Kotlin, package `com.kafkasl.phonewhisper`, minSdk 30, targetSdk 34, JDK 17, arm64-v8a only). It shows a floating push-to-talk overlay button, records audio, transcribes it locally (sherpa-onnx) or via OpenAI Whisper, optionally cleans up the text with an OpenAI chat model, and inserts the result into the focused text field of whatever app is in the foreground.
+
+## Commands
+
+```bash
+make build         # ./gradlew assembleDebug → app/build/outputs/apk/debug/app-debug.apk
+make test          # ./gradlew testDebugUnitTest
+make adb-install   # build + adb install -r
+make install       # build + scp the APK to a phone running Termux over SSH (PHONE_HOST/SSH_PORT from .env)
+make push-model MODEL=/path/to/model-dir   # copy a local sherpa-onnx model into the app's files/models/ via adb run-as
+make clean
+```
+
+Run a single test class or method:
+
+```bash
+./gradlew testDebugUnitTest --tests 'com.kafkasl.phonewhisper.PostProcessorTest'
+./gradlew testDebugUnitTest --tests 'com.kafkasl.phonewhisper.TranscriberClientTest.parses success response'
+```
+
+The Makefile hard-codes macOS/Homebrew paths for `JAVA_HOME` and `ANDROID_HOME`. On other machines, call `./gradlew` directly (with a valid `local.properties`/`ANDROID_HOME`) instead of going through `make`.
+
+There is no lint or format configuration. Unit tests are plain JVM JUnit 4 tests (no Robolectric or instrumentation). `org.json` is added as a test dependency so the `parseResponse` functions work off-device.
+
+## Architecture
+
+There are only two Android components (see `AndroidManifest.xml`). They share state through `SharedPreferences("phonewhisper")`.
+
+- **`MainActivity`** is the settings/setup screen. The whole UI is built programmatically in Kotlin; there are no layout XML files. It handles permissions, the accessibility-service link, the local/cloud toggle, the API key, model download/select/delete, and post-processing prompt presets. It writes prefs and calls `WhisperAccessibilityService.instance?.reloadModel()` when the selected model changes.
+- **`WhisperAccessibilityService`** is where the app actually runs. On `onServiceConnected` it loads the local model and adds a `TYPE_ACCESSIBILITY_OVERLAY` button. A small state machine (`IDLE → RECORDING → TRANSCRIBING`) drives the pipeline:
+  1. `AudioRecord` captures 16 kHz mono PCM16 into a `ByteArrayOutputStream` on a background thread.
+  2. Local mode (`use_local` pref, and a model is loaded): PCM is converted to floats and passed to `LocalTranscriber`. Cloud mode, or local mode with no model loaded: `WavWriter.encode` wraps the PCM, and `TranscriberClient` posts it to `/v1/audio/transcriptions` (`whisper-1`).
+  3. If `use_post_processing` is set: `PostProcessor` sends the text to `/v1/chat/completions` (`gpt-4o-mini`, temperature 0) with the selected prompt. If that call fails, the raw text is used.
+  4. `injectText` always copies the text to the clipboard first. It then searches the accessibility tree for candidate editable nodes (scored), and tries `ACTION_PASTE`, a custom paste action, and finally `ACTION_SET_TEXT` on each candidate.
+  
+  Callbacks come back on OkHttp or worker threads. UI and state changes are posted to the main `handler`.
+
+Prefs keys: `use_local`, `api_key`, `model_name`, `use_post_processing`, `post_processing_prompt`, `custom_post_processing_prompt`.
+
+### Local models
+
+- `ModelDownloader.MODEL_CATALOG` lists the models. Each `archive` name is the base name of a `.tar.bz2` file in the sherpa-onnx GitHub `asr-models` release. Each archive is downloaded and extracted into `filesDir/models/<archive>/`; `extractTarBz2` guards against path traversal.
+- `LocalTranscriber.detectModelConfig` works out the model type from the files in the directory: `preprocess.onnx` means Moonshine; encoder+decoder without a joiner means Whisper; encoder+decoder+joiner means a NeMo transducer/Parakeet; a single `model*.onnx` means NeMo CTC. It prefers `int8` files. To add a new model family, you need a new branch here.
+
+### sherpa-onnx bindings
+
+`app/src/main/kotlin/com/k2fsa/sherpa/onnx/` holds Kotlin API files vendored from upstream sherpa-onnx; treat them as third-party code. They call `System.loadLibrary("sherpa-onnx-jni")`. The native `.so` files belong in `app/src/main/jniLibs/arm64-v8a/`, but that directory is gitignored, so a fresh clone builds an APK without them. Local transcription needs them to be supplied separately, e.g. from a sherpa-onnx Android release.
+
+## Other directories
+
+- `docs/` is the static GitHub Pages site (landing page, privacy page, JS demo animations). It is not part of the app build.
+- `PRIVACY.md` describes the data flows (local vs. direct-to-OpenAI). Keep it in sync if network behavior changes.
