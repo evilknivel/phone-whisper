@@ -9,7 +9,8 @@ Phone Whisper is a single-module Android app (Kotlin, package `com.kafkasl.phone
 ## Commands
 
 ```bash
-make build         # ./gradlew assembleDebug → app/build/outputs/apk/debug/app-debug.apk
+make jni-libs      # download sherpa-onnx native libs (pinned version + SHA-256) into app/src/main/jniLibs/arm64-v8a/
+make build         # fetches jni-libs if missing, then ./gradlew assembleDebug → app/build/outputs/apk/debug/app-debug.apk
 make test          # ./gradlew testDebugUnitTest
 make adb-install   # build + adb install -r
 make install       # build + scp the APK to a phone running Termux over SSH (PHONE_HOST/SSH_PORT from .env)
@@ -50,7 +51,7 @@ Prefs keys: `use_local`, `api_key`, `model_name`, `use_post_processing`, `post_p
 
 ### sherpa-onnx bindings
 
-`app/src/main/kotlin/com/k2fsa/sherpa/onnx/` holds Kotlin API files vendored from upstream sherpa-onnx; treat them as third-party code. They call `System.loadLibrary("sherpa-onnx-jni")`. The native `.so` files belong in `app/src/main/jniLibs/arm64-v8a/`, but that directory is gitignored, so a fresh clone builds an APK without them. Local transcription needs them to be supplied separately, e.g. from a sherpa-onnx Android release.
+`app/src/main/kotlin/com/k2fsa/sherpa/onnx/` holds Kotlin API files vendored from upstream sherpa-onnx; treat them as third-party code. They call `System.loadLibrary("sherpa-onnx-jni")`. The native `.so` files (`libsherpa-onnx-jni.so`, `libonnxruntime.so`) live in `app/src/main/jniLibs/arm64-v8a/`, which is gitignored; `make jni-libs` fetches them from the sherpa-onnx Android release pinned in the Makefile (`SHERPA_VERSION`). Calling `./gradlew` directly on a fresh clone builds an APK without them, and local transcription then fails at `loadLibrary`. When bumping `SHERPA_VERSION`, update `SHERPA_SHA256` and re-vendor the Kotlin API files from the same release, since the JNI signatures must match.
 
 ## Other directories
 
