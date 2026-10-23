@@ -56,13 +56,15 @@ make adb-install
 
 ## How it works
 
-1. A small overlay button floats on screen
-2. Tap once to start recording
+1. A small button floats on screen, by default only while a keyboard is open
+2. Tap once to start recording; bars in the button follow your voice
 3. Tap again to stop
-4. Audio is transcribed locally or in the cloud
+4. Silence is trimmed, then the audio is transcribed locally or in the cloud
 5. The text is inserted into the focused text field
 6. If insertion fails, the text is copied to the clipboard
-7. If transcription fails (no network, model still loading), hold the button to retry the same recording
+7. If transcription fails (no network, wrong key, ...), the button turns orange: tap to retry the same recording, hold to discard it
+
+Turning the screen off while recording cancels the recording.
 
 ## Setup
 
@@ -73,9 +75,17 @@ make adb-install
 3. Enable the **Accessibility Service**
 4. Choose your transcription mode:
    - **Local**: download a model in the app
-   - **Cloud**: pick OpenAI or OpenRouter and paste that provider's API key. You can choose the model for each provider.
+   - **Cloud**: pick OpenAI, OpenRouter or a custom OpenAI-compatible server (Groq, a Whisper server on your computer) and set its API key under **More settings → API keys**. You can choose the model for each provider.
 
 Once setup is done, the floating button is ready.
+
+### Settings
+
+The main screen holds setup, transcription and cleanup. Everything else is under **More settings**:
+
+- **API keys**: OpenAI, OpenRouter, and the address and key of a custom server
+- **Button & insertion**: show the button always or only with a keyboard, vibration, cancelling on screen off, and **Keep my clipboard** (write text straight into the field instead of pasting it)
+- **Advanced**: CPU threads, freeing the model's memory when idle, silence trimming, microphone source
 
 ## Why does it need Accessibility?
 
@@ -88,10 +98,10 @@ It does **not** replace your keyboard. It does **not** run background automation
 Phone Whisper supports two modes:
 
 - **Local mode**: audio stays on-device. If the local model isn't ready, the app tells you instead of falling back to the cloud.
-- **Cloud mode**: audio is sent directly from your device to the transcription API of the provider you pick (OpenAI or OpenRouter)
-- **Optional cleanup**: transcript text is sent directly from your device to the chat API of the provider you pick (OpenAI or OpenRouter)
+- **Cloud mode**: audio is sent directly from your device to the transcription API of the provider you pick (OpenAI, OpenRouter or your own server)
+- **Optional cleanup**: transcript text is sent directly from your device to the chat API of the provider you pick
 
-I don't run a backend for this app. In cloud mode, requests go straight from your phone to OpenAI or OpenRouter using your own API key. OpenRouter forwards requests to the provider of the model you choose.
+I don't run a backend for this app. In cloud mode, requests go straight from your phone to the provider using your own API key. OpenRouter forwards requests to the provider of the model you choose.
 
 Full policy: [PRIVACY.md](PRIVACY.md)
 
@@ -105,17 +115,17 @@ Models are stored in app storage under:
 
 Current catalog:
 
-| Model | Size | Notes |
-|---|---:|---|
-| Parakeet 110M | 100 MB | Best default |
-| Whisper Base | 199 MB | Solid baseline |
-| Parakeet 0.6B | 465 MB | Best quality |
-| Parakeet Ultra | 600 MB | Most accurate, 25 European languages |
-| Moonshine Tiny | 103 MB | Fastest |
+| Model | Size on device | Languages | Notes |
+|---|---:|---|---|
+| Parakeet 110M | 132 MB | English | Best value |
+| Whisper Base | 161 MB | English | Solid baseline |
+| Parakeet 0.6B | 671 MB | 25 European languages | Best quality |
+| Parakeet Ultra | 630 MB | 25 European languages | Most accurate |
+| Moonshine Tiny | 124 MB | English | Fastest |
 
-Tap a model to download it, tap it again to select it, and use ✕ to delete it. Under **CPU threads** you can set how many cores local transcription uses (default 4). More threads are faster but use more battery.
+Tap a model to download it, tap it again to select it, and use ✕ to delete it. Downloads keep running with the screen off and show their progress in a notification. Under **More settings → Advanced** you can set how many CPU cores local transcription uses (default 4) and whether the model is unloaded after a few idle minutes to save memory.
 
-The app downloads and extracts models directly from the sherpa-onnx release archives. Parakeet Ultra comes as loose files from Hugging Face ([mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8), pinned to a commit), and each file is checked against its SHA-256 before the model is used.
+Most models are downloaded as individual files from Hugging Face (the sherpa-onnx mirrors and [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), pinned to a commit and checked against their SHA-256. Parakeet 110M comes from the sherpa-onnx release archive. Files the app doesn't load (full-precision copies, test recordings) are deleted after installing.
 
 ## Development
 

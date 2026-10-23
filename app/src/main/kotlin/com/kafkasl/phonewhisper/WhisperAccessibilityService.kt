@@ -357,14 +357,22 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     /**
      * In "only with keyboard" mode the button shows while a keyboard is open, and always while it
-     * records, transcribes or offers a retry. It is hidden, not removed, so it keeps its place.
+     * records, transcribes or offers a retry. It is hidden, not removed, so it keeps its place;
+     * the hidden window is made untouchable, or it would swallow taps meant for the app below.
      */
     private fun updateOverlayVisibility() {
         val view = overlayView ?: return
+        val params = layoutParams ?: return
         handler.removeCallbacks(keyboardWatchdog)
         val keyboardOnly = prefs().overlayKeyboardOnly()
         val show = !keyboardOnly || state != State.IDLE || isKeyboardVisible()
-        view.visibility = if (show) View.VISIBLE else View.GONE
+        val visibility = if (show) View.VISIBLE else View.GONE
+        if (view.visibility != visibility) {
+            view.visibility = visibility
+            params.flags = if (show) params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+                else params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            (getSystemService(WINDOW_SERVICE) as WindowManager).updateViewLayout(view, params)
+        }
         if (keyboardOnly && show && state == State.IDLE) handler.postDelayed(keyboardWatchdog, KEYBOARD_WATCHDOG_MS)
     }
 
@@ -784,7 +792,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         message?.let { showFeedback(it, if (feedback != null || !injected) 3500 else 2000) }
     }
 
-    /** Copy the transcript, marked sensitive so it isn't previewed or kept in clipboard history. */
+    /** Copy the transcript, marked sensitive so Android hides it in the clipboard preview. */
     private fun copyToClipboard(text: String) {
         val clip = ClipData.newPlainText("phonewhisper", text)
         clip.description.extras = PersistableBundle().apply {

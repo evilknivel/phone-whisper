@@ -40,7 +40,7 @@ class ButtonSettingsActivity : SettingsScreen() {
             ))
             addView(note(
                 "By default the text is copied to the clipboard and pasted, which works in the most apps. " +
-                    "Copied transcripts are marked sensitive, so they aren't previewed or kept in clipboard history."
+                    "Copied transcripts are marked sensitive, so Android hides them in the clipboard preview."
             ))
         }
     }
