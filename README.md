@@ -11,7 +11,7 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 It supports:
 
 - **Local on-device transcription** with sherpa-onnx
-- **Cloud transcription** with OpenAI Whisper or any speech-to-text model on [OpenRouter](https://openrouter.ai)
+- **Cloud transcription** with OpenAI's speech-to-text models or any speech-to-text model on [OpenRouter](https://openrouter.ai)
 - **Optional cleanup** with OpenAI or any OpenRouter chat model to fix punctuation and grammar
 
 If you try it and it genuinely saves you time, consider [sponsoring](https://github.com/sponsors/kafkasl)
@@ -35,7 +35,7 @@ Open it on your phone, install it, then launch the app once to finish setup.
 
 ### Build from source
 
-Requires JDK 17 and Android SDK.
+Requires JDK 17 and an Android SDK with platform 37 (set `ANDROID_HOME` or `sdk.dir` in `local.properties`).
 
 ```bash
 git clone https://github.com/kafkasl/phone-whisper.git && cd phone-whisper
@@ -62,6 +62,7 @@ make adb-install
 4. Audio is transcribed locally or in the cloud
 5. The text is inserted into the focused text field
 6. If insertion fails, the text is copied to the clipboard
+7. If transcription fails (no network, model still loading), hold the button to retry the same recording
 
 ## Setup
 
@@ -72,7 +73,7 @@ make adb-install
 3. Enable the **Accessibility Service**
 4. Choose your transcription mode:
    - **Local**: download a model in the app
-   - **Cloud**: pick OpenAI or OpenRouter and paste that provider's API key. With OpenRouter you can choose the model.
+   - **Cloud**: pick OpenAI or OpenRouter and paste that provider's API key. You can choose the model for each provider.
 
 Once setup is done, the floating button is ready.
 
@@ -86,7 +87,7 @@ It does **not** replace your keyboard. It does **not** run background automation
 
 Phone Whisper supports two modes:
 
-- **Local mode**: audio stays on-device
+- **Local mode**: audio stays on-device. If the local model isn't ready, the app tells you instead of falling back to the cloud.
 - **Cloud mode**: audio is sent directly from your device to the transcription API of the provider you pick (OpenAI or OpenRouter)
 - **Optional cleanup**: transcript text is sent directly from your device to the chat API of the provider you pick (OpenAI or OpenRouter)
 
@@ -112,6 +113,8 @@ Current catalog:
 | Parakeet Ultra | 600 MB | Most accurate, 25 European languages |
 | Moonshine Tiny | 103 MB | Fastest |
 
+Tap a model to download it, tap it again to select it, and use ✕ to delete it. Under **CPU threads** you can set how many cores local transcription uses (default 4). More threads are faster but use more battery.
+
 The app downloads and extracts models directly from the sherpa-onnx release archives. Parakeet Ultra comes as loose files from Hugging Face ([mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8), pinned to a commit), and each file is checked against its SHA-256 before the model is used.
 
 ## Development
@@ -119,6 +122,7 @@ The app downloads and extracts models directly from the sherpa-onnx release arch
 ```bash
 make build       # build debug APK
 make test        # run unit tests
+make integration-test MODELS=... WAV=...  # run every catalog model through sherpa-onnx (Linux x64, see CLAUDE.md)
 make adb-install # build + install via ADB
 make clean       # clean build artifacts
 ```

@@ -28,4 +28,15 @@ class TranscriberClientTest {
         assertNull(r.text)
         assertNotNull(r.error)
     }
+
+    @Test fun `http error without json body reports the status`() {
+        val r = TranscriberClient.parseResponse(504, "<html>Gateway Timeout</html>")
+        assertNull(r.text)
+        assertEquals("HTTP 504", r.error)
+    }
+
+    @Test fun `http error with api message reports the message`() {
+        val r = TranscriberClient.parseResponse(400, """{"error":{"message":"Audio file is too short"}}""")
+        assertEquals("Audio file is too short", r.error)
+    }
 }

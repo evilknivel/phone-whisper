@@ -10,8 +10,6 @@ import java.util.Base64
 object TranscriberClient {
     data class Result(val text: String?, val error: String?)
 
-    private val client = OkHttpClient()
-
     fun parseResponse(json: String): Result = try {
         val obj = JSONObject(json)
         when {
@@ -23,16 +21,22 @@ object TranscriberClient {
         Result(null, e.message ?: "Parse error")
     }
 
+    /** Successful bodies are parsed; error bodies give the API's message, or `HTTP <code>` if they have none. */
+    fun parseResponse(code: Int, body: String): Result =
+        if (code in 200..299) parseResponse(body) else Result(null, apiErrorMessage(code, body))
+
     fun transcribe(wavData: ByteArray, target: CloudTarget, callback: (Result) -> Unit) {
         val request = when (target.provider) {
             CloudProvider.OPENAI -> openAiRequest(wavData, target)
             CloudProvider.OPENROUTER -> openRouterRequest(wavData, target)
         }
 
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) = callback(Result(null, e.message))
-            override fun onResponse(call: Call, response: Response) =
-                callback(parseResponse(response.body?.string() ?: ""))
+        Http.client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) = callback(Result(null, e.message ?: "Network error"))
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.use { it.body.string() }
+                callback(parseResponse(response.code, body))
+            }
         })
     }
 
@@ -40,6 +44,7 @@ object TranscriberClient {
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("model", target.model)
+            .addFormDataPart("response_format", "json")
             .addFormDataPart("file", "audio.wav", wavData.toRequestBody("audio/wav".toMediaType()))
             .build()
 
@@ -50,7 +55,7 @@ object TranscriberClient {
             .build()
     }
 
-    /** OpenRouter's STT endpoint is not OpenAI-compatible: it takes JSON with base64 audio, not multipart. */
+    /** OpenRouter's STT endpoint also takes multipart now, but JSON with base64 audio is its documented main format. */
     private fun openRouterRequest(wavData: ByteArray, target: CloudTarget): Request =
         Request.Builder()
             .url("${OpenRouter.BASE_URL}/audio/transcriptions")

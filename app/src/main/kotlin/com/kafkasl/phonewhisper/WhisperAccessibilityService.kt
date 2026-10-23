@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioFormat
@@ -17,6 +18,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -26,13 +28,21 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 import kotlin.math.abs
 
 class WhisperAccessibilityService : AccessibilityService() {
 
     companion object {
-        var instance: WhisperAccessibilityService? = null
+        @Volatile var instance: WhisperAccessibilityService? = null
+            private set
+
+        /** Called on the main thread when the service starts or stops; MainActivity uses it to refresh its status. */
+        var onRunningChanged: (() -> Unit)? = null
         private const val TAG = "PhoneWhisper"
         private const val SAMPLE_RATE = 16000
         private const val BTN_DP = 44
@@ -51,7 +61,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private enum class State { IDLE, RECORDING, TRANSCRIBING }
 
-    private var state = State.IDLE
+    @Volatile private var state = State.IDLE
     private var overlayView: FrameLayout? = null
     private var button: ImageView? = null
     private var spinner: ProgressBar? = null
@@ -59,6 +69,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var layoutParams: WindowManager.LayoutParams? = null
     private var feedbackLayoutParams: WindowManager.LayoutParams? = null
     private var audioRecord: AudioRecord? = null
+    private var recorderThread: Thread? = null
     private var pcmStream: ByteArrayOutputStream? = null
     private val handler = Handler(Looper.getMainLooper())
     private val hideFeedback = Runnable {
@@ -67,50 +78,93 @@ class WhisperAccessibilityService : AccessibilityService() {
         }?.start()
     }
 
-    // Local transcription engine (loaded lazily)
-    private var localTranscriber: LocalTranscriber? = null
+    // The overlay remembers which edge it sits on and how far down, so it survives rotation.
+    private var onRightEdge = true
+    private var yFraction = 0.5f
+
+    /** Audio of the last recording that could not be transcribed; long-press the button to retry it. */
+    @Volatile private var failedPcm: ByteArray? = null
+
+    // Local transcription engine. Loading and releasing run on [modelExecutor], one at a time;
+    // [transcriberLock] keeps a model from being released while it transcribes.
+    private val modelExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val transcriberLock = Any()
+    @Volatile private var localTranscriber: LocalTranscriber? = null
+    private val pendingLoads = AtomicInteger()
+    private val modelLoading get() = pendingLoads.get() > 0
 
     private val dp get() = resources.displayMetrics.density
-    private val screenW get() = resources.displayMetrics.widthPixels
-    private val screenH get() = resources.displayMetrics.heightPixels
+
+    private val screenSize: Pair<Int, Int>
+        get() {
+            val bounds = (getSystemService(WINDOW_SERVICE) as WindowManager).currentWindowMetrics.bounds
+            return bounds.width() to bounds.height()
+        }
 
     override fun onServiceConnected() {
         instance = this
+        onRunningChanged?.invoke()
         showOverlay()
-        // Try to load local model in background
-        thread { initLocalModel() }
+        reloadModel()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Window metrics are updated after the configuration callback.
+        handler.post { placeOverlay() }
+    }
+
     override fun onDestroy() {
         instance = null
+        onRunningChanged?.invoke()
+        state = State.IDLE
+        releaseRecorder()
         removeOverlay()
+        modelExecutor.execute { unloadModel() }
+        modelExecutor.shutdown()
         super.onDestroy()
     }
 
-    private fun initLocalModel() {
-        val modelName = prefs().getString("model_name", "") ?: ""
-        if (modelName.isBlank()) {
-            // Auto-detect first available model
-            val models = LocalTranscriber.availableModels(this)
-            if (models.isNotEmpty()) {
-                Log.i(TAG, "Auto-detected model: ${models.first()}")
-                localTranscriber = LocalTranscriber.create(this, models.first())
+    // --- Local model ---
+
+    /**
+     * (Re)load the selected local model, or just free the current one in cloud mode. The old model
+     * is released before the new one loads, so two large models are never in memory at once.
+     * Called from MainActivity when the model, the thread count or the mode changes.
+     */
+    fun reloadModel() {
+        pendingLoads.incrementAndGet()
+        modelExecutor.execute {
+            try {
+                unloadModel()
+                if (prefs().getBoolean("use_local", true)) {
+                    val loaded = loadSelectedModel()
+                    synchronized(transcriberLock) { localTranscriber = loaded }
+                    Log.i(TAG, if (loaded != null) "Local transcription ready" else "No usable local model")
+                }
+            } finally {
+                pendingLoads.decrementAndGet()
             }
-        } else {
-            localTranscriber = LocalTranscriber.create(this, modelName)
-        }
-        if (localTranscriber != null) {
-            Log.i(TAG, "Local transcription ready")
-        } else {
-            Log.i(TAG, "No local model found, will use API")
         }
     }
 
-    /** Reload local model (called from MainActivity when settings change) */
-    fun reloadModel() { thread { initLocalModel() } }
+    private fun unloadModel() {
+        synchronized(transcriberLock) {
+            localTranscriber?.release()
+            localTranscriber = null
+        }
+    }
+
+    private fun loadSelectedModel(): LocalTranscriber? {
+        val available = LocalTranscriber.availableModels(this)
+        val selected = prefs().getString("model_name", "").orEmpty()
+        val name = selected.takeIf { it in available } ?: available.firstOrNull() ?: return null
+        val threads = prefs().getInt("num_threads", LocalTranscriber.DEFAULT_THREADS)
+        return LocalTranscriber.create(File(LocalTranscriber.modelsDir(this), name), threads)
+    }
 
     // --- Overlay ---
 
@@ -119,7 +173,6 @@ class WhisperAccessibilityService : AccessibilityService() {
         val buttonSize = (BTN_DP * dp).toInt()
         val ringSize = (RING_DP * dp).toInt()
         val pad = (PAD_DP * dp).toInt()
-        val margin = (MARGIN_DP * dp).toInt()
 
         val ring = ProgressBar(this).apply {
             isIndeterminate = true
@@ -146,8 +199,6 @@ class WhisperAccessibilityService : AccessibilityService() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = screenW - ringSize - margin
-            y = screenH / 2 - ringSize / 2
         }
 
         var startX = 0; var startY = 0
@@ -161,27 +212,23 @@ class WhisperAccessibilityService : AccessibilityService() {
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    val (_, screenH) = screenSize
                     params.x = startX + (ev.rawX - touchX).toInt()
-                    params.y = startY + (ev.rawY - touchY).toInt()
+                    params.y = (startY + (ev.rawY - touchY).toInt()).coerceIn(0, maxOf(0, screenH - ringSize))
                     wm.updateViewLayout(v, params)
-                    feedbackLayoutParams?.let {
-                        positionFeedback(it, params)
-                        wm.updateViewLayout(feedbackView, it)
-                    }
+                    updateFeedbackPosition()
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     val moved = abs(ev.rawX - touchX) + abs(ev.rawY - touchY)
                     if (moved < TAP_THRESHOLD_DP * dp) {
-                        onTap()
+                        val held = ev.eventTime - ev.downTime
+                        if (held >= ViewConfiguration.getLongPressTimeout()) onLongPress() else onTap()
                     } else {
-                        params.x = if (params.x + ringSize / 2 > screenW / 2)
-                            screenW - ringSize - margin else margin
-                        wm.updateViewLayout(v, params)
-                        feedbackLayoutParams?.let {
-                            positionFeedback(it, params)
-                            wm.updateViewLayout(feedbackView, it)
-                        }
+                        val (screenW, screenH) = screenSize
+                        onRightEdge = params.x + ringSize / 2 > screenW / 2
+                        yFraction = (params.y + ringSize / 2f) / screenH
+                        placeOverlay()
                     }
                     true
                 }
@@ -207,16 +254,43 @@ class WhisperAccessibilityService : AccessibilityService() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
         }
-        positionFeedback(feedbackParams, params)
 
-        wm.addView(overlay, params)
-        wm.addView(feedback, feedbackParams)
         overlayView = overlay
         button = img
         spinner = ring
         feedbackView = feedback
         layoutParams = params
         feedbackLayoutParams = feedbackParams
+        positionOverlay(params)
+        positionFeedback(feedbackParams, params)
+
+        wm.addView(overlay, params)
+        wm.addView(feedback, feedbackParams)
+    }
+
+    /** Snap the button to its edge at its relative height, for the current screen size. */
+    private fun positionOverlay(params: WindowManager.LayoutParams) {
+        val (screenW, screenH) = screenSize
+        val ringSize = (RING_DP * dp).toInt()
+        val margin = (MARGIN_DP * dp).toInt()
+        params.x = if (onRightEdge) screenW - ringSize - margin else margin
+        params.y = (yFraction * screenH - ringSize / 2f).toInt().coerceIn(margin, maxOf(margin, screenH - ringSize - margin))
+    }
+
+    private fun placeOverlay() {
+        val view = overlayView ?: return
+        val params = layoutParams ?: return
+        positionOverlay(params)
+        (getSystemService(WINDOW_SERVICE) as WindowManager).updateViewLayout(view, params)
+        updateFeedbackPosition()
+    }
+
+    private fun updateFeedbackPosition() {
+        val view = feedbackView ?: return
+        val params = feedbackLayoutParams ?: return
+        val bubble = layoutParams ?: return
+        positionFeedback(params, bubble)
+        (getSystemService(WINDOW_SERVICE) as WindowManager).updateViewLayout(view, params)
     }
 
     private fun removeOverlay() {
@@ -268,13 +342,8 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun showFeedback(text: String, durationMs: Long = 2000) {
         handler.post {
             val view = feedbackView ?: return@post
-            val bubbleParams = layoutParams ?: return@post
-            val feedbackParams = feedbackLayoutParams ?: return@post
-            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-
             view.text = text
-            positionFeedback(feedbackParams, bubbleParams)
-            wm.updateViewLayout(view, feedbackParams)
+            updateFeedbackPosition()
 
             handler.removeCallbacks(hideFeedback)
             view.animate().cancel()
@@ -310,6 +379,19 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun onLongPress() {
+        val pcm = failedPcm
+        when {
+            state != State.IDLE -> onTap()
+            pcm == null -> startRecording()
+            else -> {
+                failedPcm = null
+                setTranscribing()
+                transcribe(pcm)
+            }
+        }
+    }
+
     private fun startRecording() {
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -319,55 +401,87 @@ class WhisperAccessibilityService : AccessibilityService() {
         val bufSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         )
-        audioRecord = try {
+        if (bufSize <= 0) { toast("Microphone not available"); return }
+
+        // Creating or starting the recorder fails when another app (or a call) holds the microphone.
+        val recorder = try {
             AudioRecord(
                 MediaRecorder.AudioSource.MIC, SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufSize
             )
         } catch (_: SecurityException) { toast("Audio permission denied"); return }
+        catch (e: IllegalArgumentException) { toast("Microphone not available"); return }
 
-        pcmStream = ByteArrayOutputStream()
-        audioRecord!!.startRecording()
+        val started = recorder.state == AudioRecord.STATE_INITIALIZED && try {
+            recorder.startRecording()
+            recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING
+        } catch (_: IllegalStateException) { false }
+        if (!started) {
+            recorder.release()
+            toast("Microphone is busy")
+            return
+        }
+
+        val stream = ByteArrayOutputStream()
+        audioRecord = recorder
+        pcmStream = stream
         state = State.RECORDING
+        failedPcm = null
         setBusy(false)
         setAppearance(COLOR_RECORDING)
         startPulse()
 
-        thread {
+        recorderThread = thread {
             val buf = ByteArray(bufSize)
             while (state == State.RECORDING) {
-                val n = audioRecord?.read(buf, 0, buf.size) ?: break
-                if (n > 0) pcmStream?.write(buf, 0, n)
+                val n = recorder.read(buf, 0, buf.size)
+                if (n > 0) stream.write(buf, 0, n) else if (n < 0) break
             }
         }
     }
 
-    private fun stopAndTranscribe() {
+    /** Stop the recorder, wait for the reader thread so the last buffer isn't lost, and free it. */
+    private fun releaseRecorder() {
+        val recorder = audioRecord ?: return
+        audioRecord = null
+        try { recorder.stop() } catch (_: IllegalStateException) {}
+        recorderThread?.join(1000)
+        recorderThread = null
+        recorder.release()
+    }
+
+    private fun setTranscribing() {
         state = State.TRANSCRIBING
         stopPulse()
         setAppearance(COLOR_BUSY)
         setBusy(true)
+    }
 
-        audioRecord?.stop()
-        audioRecord?.release()
-        audioRecord = null
+    private fun stopAndTranscribe() {
+        setTranscribing()
+        releaseRecorder()
 
         val pcm = pcmStream?.toByteArray() ?: ByteArray(0)
         pcmStream = null
 
         if (pcm.isEmpty()) { reset("No audio captured"); return }
+        transcribe(pcm)
+    }
 
-        val useLocal = prefs().getBoolean("use_local", true)
-        val local = localTranscriber
-
-        if (useLocal && local != null) {
-            transcribeLocal(pcm, local)
-        } else {
-            transcribeApi(pcm)
+    /**
+     * Local mode never falls back to the cloud: if the model is still loading or missing, the
+     * recording is kept for a retry instead of being sent off the device.
+     */
+    private fun transcribe(pcm: ByteArray) {
+        if (!prefs().getBoolean("use_local", true)) { transcribeApi(pcm); return }
+        when {
+            localTranscriber != null -> transcribeLocal(pcm)
+            modelLoading -> fail(pcm, "Local model is still loading")
+            else -> fail(null, "No local model. Download one in the Phone Whisper app.")
         }
     }
 
-    private fun transcribeLocal(pcm: ByteArray, transcriber: LocalTranscriber) {
+    private fun transcribeLocal(pcm: ByteArray) {
         thread {
             try {
                 // Convert 16-bit PCM bytes to float samples
@@ -378,40 +492,47 @@ class WhisperAccessibilityService : AccessibilityService() {
                     samples[i] = ((hi shl 8) or lo).toShort().toFloat() / 32768f
                 }
 
-                val t0 = System.currentTimeMillis()
-                val text = transcriber.transcribe(samples, SAMPLE_RATE)
-                val ms = System.currentTimeMillis() - t0
-                Log.i(TAG, "Local transcription: ${ms}ms, ${samples.size / SAMPLE_RATE}s audio")
+                val text = synchronized(transcriberLock) {
+                    val transcriber = localTranscriber ?: return@thread fail(pcm, "Local model is still loading")
+                    val t0 = System.currentTimeMillis()
+                    transcriber.transcribe(samples, SAMPLE_RATE).also {
+                        val ms = System.currentTimeMillis() - t0
+                        Log.i(TAG, "Local transcription: ${ms}ms, ${samples.size / SAMPLE_RATE}s audio")
+                    }
+                }
 
                 handleTranscriptionResult(text)
             } catch (e: Exception) {
                 Log.e(TAG, "Local transcription failed", e)
-                handler.post {
-                    toast("Local error: ${e.message}")
-                    state = State.IDLE
-                    setBusy(false)
-                    setAppearance(COLOR_IDLE)
-                }
+                fail(pcm, "Local error: ${e.message}")
             }
         }
     }
 
     private fun transcribeApi(pcm: ByteArray) {
-        val wav = WavWriter.encode(pcm)
         val target = prefs().transcriptionTarget()
-        if (target.apiKey.isBlank()) { reset("Set ${target.provider.label} API key in Phone Whisper app"); return }
+        if (target.apiKey.isBlank()) { fail(pcm, "Set ${target.provider.label} API key in Phone Whisper app"); return }
 
-        TranscriberClient.transcribe(wav, target) { result ->
+        TranscriberClient.transcribe(WavWriter.encode(pcm), target) { result ->
             if (result.text != null && result.text.isNotBlank()) {
                 handleTranscriptionResult(result.text)
+            } else if (result.error == null) {
+                handleTranscriptionResult(null)
             } else {
-                handler.post {
-                    toast("Error: ${result.error ?: "empty transcript"}")
-                    state = State.IDLE
-                    setBusy(false)
-                    setAppearance(COLOR_IDLE)
-                }
+                fail(pcm, "Error: ${result.error}")
             }
+        }
+    }
+
+    /** Show [message] and return to idle. With [pcm], the recording is kept for a long-press retry. */
+    private fun fail(pcm: ByteArray?, message: String) {
+        failedPcm = pcm
+        val hint = if (pcm != null) "\nHold the button to retry" else ""
+        showFeedback(message + hint, 4000)
+        handler.post {
+            state = State.IDLE
+            setBusy(false)
+            setAppearance(COLOR_IDLE)
         }
     }
 
@@ -442,13 +563,13 @@ class WhisperAccessibilityService : AccessibilityService() {
             }
 
             val prompt = prefs().getString("post_processing_prompt", PostProcessor.DEFAULT_PROMPT) ?: PostProcessor.DEFAULT_PROMPT
-            
+
             PostProcessor.process(text, prompt, target) { result ->
                 handler.post {
                     if (result.text != null && result.text.isNotBlank()) {
                         injectText(result.text)
                     } else {
-                        injectText(text, feedback = "Cleanup failed — raw copied to clipboard", feedbackDurationMs = 3000)
+                        injectText(text, feedback = "Cleanup failed — raw text used", feedbackDurationMs = 3000)
                     }
                     state = State.IDLE
                     setBusy(false)
@@ -481,81 +602,48 @@ class WhisperAccessibilityService : AccessibilityService() {
     ) {
         val clip = ClipData.newPlainText("phonewhisper", text)
         (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
-        feedback?.let { showFeedback(it, feedbackDurationMs) }
 
         val candidates = findInjectionCandidates()
         Log.i(TAG, "Injecting text into ${candidates.size} candidate node(s)")
 
-        var injected = false
-        try {
-            for (candidate in candidates) {
-                if (tryInjectIntoNode(candidate, text)) {
-                    injected = true
-                    break
-                }
-            }
-        } finally {
-            candidates.forEach { it.recycle() }
-        }
-
+        val injected = candidates.any { tryInjectIntoNode(it, text) }
         Log.i(TAG, if (injected) "Text injection action reported success" else "No injection action succeeded; clipboard fallback only")
+
+        when {
+            injected || candidates.isNotEmpty() -> feedback?.let { showFeedback(it, feedbackDurationMs) }
+            else -> showFeedback("No text field focused — copied to clipboard", 3000)
+        }
     }
 
+    /**
+     * Only the field that has focus is a target. Trying every text field in the window could
+     * paste into an unrelated one (a search bar, say) when pasting into the focused one fails.
+     */
     private fun findInjectionCandidates(): List<AccessibilityNodeInfo> {
+        val roots = buildList {
+            rootInActiveWindow?.let { add(it) }
+            windows?.filter { it.isActive || it.isFocused }?.forEach { window -> window.root?.let { add(it) } }
+        }
+
         val candidates = mutableListOf<AccessibilityNodeInfo>()
-
-        rootInActiveWindow?.let { root ->
-            Log.i(TAG, "Active root: package=${root.packageName} class=${root.className}")
-            collectInjectionCandidates(root, candidates)
-            root.recycle()
+        for (root in roots) {
+            Log.i(TAG, "Root: package=${root.packageName} class=${root.className}")
+            root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf(::isTextTarget)?.let { candidates += it }
+            collectFocusedTargets(root, candidates)
         }
-
-        windows
-            ?.filter { it.isActive || it.isFocused }
-            ?.forEach { window ->
-                val root = window.root ?: return@forEach
-                Log.i(
-                    TAG,
-                    "Window root: type=${window.type} active=${window.isActive} focused=${window.isFocused} package=${root.packageName} class=${root.className}"
-                )
-                collectInjectionCandidates(root, candidates)
-                root.recycle()
-            }
-
-        return candidates.sortedByDescending(::candidateScore)
+        return candidates.distinct().sortedByDescending(::candidateScore)
     }
 
-    private fun collectInjectionCandidates(
-        root: AccessibilityNodeInfo,
-        out: MutableList<AccessibilityNodeInfo>
-    ) {
-        root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.let { out += it }
-        root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)?.let { out += it }
-        collectPotentialTargets(root, out)
-    }
-
-    private fun collectPotentialTargets(
-        node: AccessibilityNodeInfo,
-        out: MutableList<AccessibilityNodeInfo>
-    ) {
-        if (isPotentialInjectionTarget(node)) {
-            out += AccessibilityNodeInfo.obtain(node)
-        }
-
+    private fun collectFocusedTargets(node: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {
+        if (node.isFocused && isTextTarget(node)) out += node
         for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            try {
-                collectPotentialTargets(child, out)
-            } finally {
-                child.recycle()
-            }
+            node.getChild(i)?.let { collectFocusedTargets(it, out) }
         }
     }
 
-    private fun isPotentialInjectionTarget(node: AccessibilityNodeInfo): Boolean {
+    private fun isTextTarget(node: AccessibilityNodeInfo): Boolean {
         val className = node.className?.toString().orEmpty()
-        return node.isFocused ||
-            node.isEditable ||
+        return node.isEditable ||
             className.contains("EditText") ||
             className.contains("TerminalView") ||
             findCustomPasteAction(node) != null
@@ -567,15 +655,12 @@ class WhisperAccessibilityService : AccessibilityService() {
         if (findCustomPasteAction(node) != null) score += 100
         if (className.contains("TerminalView")) score += 80
         if (node.isEditable) score += 60
-        if (node.isFocused) score += 40
         if (className.contains("EditText")) score += 20
         return score
     }
 
     private fun tryInjectIntoNode(node: AccessibilityNodeInfo, text: String): Boolean {
         logNode("Trying node", node)
-
-        node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
 
         findCustomPasteAction(node)?.let { action ->
             val ok = node.performAction(action.id)
@@ -591,8 +676,8 @@ class WhisperAccessibilityService : AccessibilityService() {
             val current = node.text?.toString().orEmpty()
             val start = if (node.textSelectionStart >= 0) node.textSelectionStart else current.length
             val end = if (node.textSelectionEnd >= 0) node.textSelectionEnd else start
-            val replacementStart = minOf(start, end)
-            val replacementEnd = maxOf(start, end)
+            val replacementStart = minOf(start, end).coerceAtMost(current.length)
+            val replacementEnd = maxOf(start, end).coerceAtMost(current.length)
             val updated = current.replaceRange(replacementStart, replacementEnd, text)
             val args = Bundle().apply {
                 putCharSequence(
