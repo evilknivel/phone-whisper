@@ -77,18 +77,21 @@
     <p>Phone Whisper supports two transcription modes, giving you control over where your audio is processed.</p>
 
     <h3>Local mode</h3>
-    <p>In local mode, audio is processed on-device using local speech recognition models. <strong>Audio does not leave your device.</strong> This is the recommended mode for maximum privacy.</p>
+    <p>In local mode, audio is processed on-device using local speech recognition models. <strong>Audio does not leave your device</strong>, also not when the model is missing or still loading. This is the recommended mode for maximum privacy.</p>
+    <p>Silence is trimmed from recordings on the device before transcription. Models are downloaded only when you choose to, from GitHub or Hugging Face; these downloads contain no audio or text.</p>
 
     <h3>Cloud mode</h3>
-    <p>In cloud mode, recorded audio is sent directly from the device to OpenAI's transcription API to generate text.</p>
-    <p>If optional cleanup is enabled, the transcribed text is also sent directly from the device to OpenAI's chat API to improve punctuation, capitalization, and clarity.</p>
+    <p>In cloud mode, recorded audio is sent directly from the device to the transcription API of the provider you select: OpenAI, OpenRouter, or a custom OpenAI-compatible server whose address you enter. If no speech is detected, nothing is sent unless you tap retry.</p>
+    <p>If optional cleanup is enabled, the transcribed text is also sent directly from the device to the chat API of the provider you select to improve punctuation, capitalization, and clarity.</p>
+    <p>OpenRouter forwards requests to the provider of the model you choose there. A custom server address may use unencrypted http for a server on your own network; audio sent that way can be read by anyone on that network.</p>
 
     <h2>API keys</h2>
-    <p>If you use cloud features, your OpenAI API key is stored locally on your device in secure app storage. It is used only to authenticate requests sent directly from your device to OpenAI.</p>
+    <p>If you use cloud features, your API keys are stored locally on your device in app storage. They are used only to authenticate requests sent directly from your device to the provider, including loading its list of models.</p>
     <p><strong>I do not operate a relay server.</strong> Your keys and your data never touch any infrastructure controlled by me.</p>
 
     <h2>Accessibility Service</h2>
-    <p>Phone Whisper uses Android Accessibility Service for the sole purpose of identifying the currently focused text field and inserting dictated text. This happens only after you explicitly interact with the floating overlay button.</p>
+    <p>Phone Whisper uses Android Accessibility Service to identify the currently focused text field and insert dictated text, which happens only after you explicitly interact with the floating overlay button, and to see whether a keyboard is open so the button can be shown only then. It does not log the contents of text fields.</p>
+    <p>Inserted text is copied to the clipboard and pasted, unless you turn on "Keep my clipboard". Copied transcripts are marked as sensitive, so Android hides them in the clipboard preview.</p>
     <ul>
       <li>It does not monitor your browsing.</li>
       <li>It does not collect screen content for analytics.</li>
@@ -97,7 +100,7 @@
 
     <h2>Data collection</h2>
     <p>I do not run a backend for Phone Whisper. I do not collect user accounts, analytics, crash reports, or uploaded recordings.</p>
-    <p>Third-party services you choose to use, such as OpenAI, may process data according to their own terms and privacy policies.</p>
+    <p>Third-party services you choose to use, such as OpenAI or OpenRouter, may process data according to their own terms and privacy policies.</p>
 
     <h2>Open source</h2>
     <p>Because trust is earned, Phone Whisper is open source. You can audit the code yourself on GitHub to verify how your data and permissions are handled.</p>

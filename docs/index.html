@@ -160,35 +160,35 @@
           <span class="step-num">1</span>
           <div class="step-body">
             <strong>Tap the overlay button</strong>
-            <p>A small floating button lives on top of your apps. Tap it once to start recording.</p>
+            <p>A small floating button appears on top of your apps while a keyboard is open (or always, if you prefer). Tap it once to start recording.</p>
           </div>
         </li>
         <li class="step">
           <span class="step-num">2</span>
           <div class="step-body">
             <strong>Speak</strong>
-            <p>Dictate naturally. The button pulses red while it's listening.</p>
+            <p>Dictate naturally. The button turns red, and its bars follow your voice.</p>
           </div>
         </li>
         <li class="step">
           <span class="step-num">3</span>
           <div class="step-body">
             <strong>Tap again to stop</strong>
-            <p>The button turns gray while the transcription runs.</p>
+            <p>Pauses are trimmed, and the button turns gray while the transcription runs. If it fails, the button turns orange: tap to retry.</p>
           </div>
         </li>
         <li class="step">
           <span class="step-num">4</span>
           <div class="step-body">
             <strong>Audio is transcribed</strong>
-            <p>On-device using local models, or sent to OpenAI Whisper with your own API key.</p>
+            <p>On-device with local models, or by OpenAI, OpenRouter or your own server with your own API key. Optionally a language model cleans up the text.</p>
           </div>
         </li>
         <li class="step">
           <span class="step-num">5</span>
           <div class="step-body">
             <strong>Text is inserted</strong>
-            <p>The transcribed text goes into the currently focused field when the app exposes a standard Android input field. If insertion fails, it falls back to the clipboard.</p>
+            <p>The transcribed text goes into the currently focused field when the app exposes a standard Android input field. If insertion fails, it stays on the clipboard so you can paste it.</p>
           </div>
         </li>
       </ol>
@@ -207,41 +207,52 @@
             <li>Audio never leaves your phone</li>
             <li>No API key required</li>
             <li>Download a model once, use it offline</li>
+            <li>German and 24 more languages with Parakeet 0.6B / Ultra, 99 with Whisper</li>
           </ul>
           <div class="models-table">
             <div class="models-table-head">Available models</div>
             <div class="model-row">
               <span class="model-name">Parakeet 110M</span>
-              <span class="model-size">100 MB</span>
-              <span class="model-note default-badge">Recommended</span>
+              <span class="model-size">132 MB</span>
+              <span class="model-note">English</span>
             </div>
             <div class="model-row">
               <span class="model-name">Moonshine Tiny</span>
-              <span class="model-size">103 MB</span>
-              <span class="model-note">Fastest</span>
+              <span class="model-size">124 MB</span>
+              <span class="model-note">English, fastest</span>
             </div>
             <div class="model-row">
               <span class="model-name">Whisper Base</span>
-              <span class="model-size">199 MB</span>
-              <span class="model-note">Solid baseline</span>
+              <span class="model-size">161 MB</span>
+              <span class="model-note">99 languages</span>
+            </div>
+            <div class="model-row">
+              <span class="model-name">Whisper Small</span>
+              <span class="model-size">375 MB</span>
+              <span class="model-note">99 languages</span>
             </div>
             <div class="model-row">
               <span class="model-name">Parakeet 0.6B</span>
-              <span class="model-size">465 MB</span>
-              <span class="model-note">Best quality</span>
+              <span class="model-size">671 MB</span>
+              <span class="model-note default-badge">25 languages</span>
+            </div>
+            <div class="model-row">
+              <span class="model-name">Parakeet Ultra</span>
+              <span class="model-size">630 MB</span>
+              <span class="model-note">Most accurate</span>
             </div>
           </div>
         </div>
         <div class="mode-card">
           <h3>Cloud mode</h3>
           <ul>
-            <li>Uses OpenAI Whisper API</li>
+            <li>OpenAI, any speech-to-text model on OpenRouter, or your own OpenAI-compatible server (e.g. Groq)</li>
             <li>Your own API key, stored on-device</li>
             <li>No backend run by me</li>
-            <li>Optional: send transcript to OpenAI for cleanup</li>
+            <li>Optional cleanup with a chat model of your choice</li>
           </ul>
           <div class="cloud-note">
-            Requests go straight from your phone to OpenAI. I'm not in the loop.
+            Requests go straight from your phone to the provider you choose. I'm not in the loop.
           </div>
         </div>
       </div>
@@ -284,8 +295,8 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
           <div>
-            <strong>Cloud mode goes direct to OpenAI.</strong>
-            <p>Audio is sent from your device straight to the OpenAI API using your own key. I don't operate a relay server.</p>
+            <strong>Cloud mode goes direct to your provider.</strong>
+            <p>Audio is sent from your device straight to OpenAI, OpenRouter or your own server using your own key. I don't operate a relay server.</p>
           </div>
         </div>
         <div class="privacy-point">
@@ -316,11 +327,11 @@
         </details>
         <details class="faq-item" id="faq-accessibility">
           <summary>Why does it need Accessibility permission?</summary>
-          <p>Android doesn't have a standard API for inserting text into another app's focused field. The Accessibility Service is the sanctioned way to do that cross-app. Phone Whisper uses it for exactly one thing: inserting the transcribed text.</p>
+          <p>Android doesn't have a standard API for inserting text into another app's focused field. The Accessibility Service is the sanctioned way to do that cross-app. Phone Whisper uses it to insert the transcribed text, and to see whether a keyboard is open so the button only shows when you can type.</p>
         </details>
         <details class="faq-item" id="faq-audio">
           <summary>Does audio stay on-device?</summary>
-          <p>In local mode, yes. In cloud mode, audio is sent directly to OpenAI's API from your device using your own API key. I don't have a backend and never see your audio.</p>
+          <p>In local mode, yes, even when the model is still loading. In cloud mode, audio is sent directly from your device to the provider you chose, using your own API key. I don't have a backend and never see your audio.</p>
         </details>
         <details class="faq-item" id="faq-compatibility">
           <summary>Does it work in every app?</summary>

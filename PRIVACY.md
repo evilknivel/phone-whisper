@@ -16,7 +16,7 @@ Models are downloaded only when you choose to download them, from GitHub (sherpa
 
 ### Cloud mode
 
-In cloud mode, recorded audio is sent directly from the device to the transcription API of the provider you select, OpenAI, OpenRouter, or a custom OpenAI-compatible server whose address you enter, to generate text. A recording with no speech in it is not sent.
+In cloud mode, recorded audio is sent directly from the device to the transcription API of the provider you select, OpenAI, OpenRouter, or a custom OpenAI-compatible server whose address you enter, to generate text. If you set a fixed language, it is sent along. With silence trimming on (the default), only the parts of the recording with speech are sent, and a recording with no detected speech is not sent unless you tap the retry button.
 
 When you open the model picker, the app loads the list of available models from the provider. For OpenAI and a custom server this request includes your API key; no audio or text is sent.
 

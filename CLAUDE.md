@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Phone Whisper is a single-module Android app (Kotlin, package `com.kafkasl.phonewhisper`, minSdk 30, targetSdk 36, compileSdk 37, JDK 17, arm64-v8a only; AGP 9 with its built-in Kotlin, Gradle 9). It shows a floating push-to-talk overlay button, records audio, transcribes it locally (sherpa-onnx) or in the cloud (OpenAI or OpenRouter), optionally cleans up the text with a chat model (OpenAI or OpenRouter), and inserts the result into the focused text field of whatever app is in the foreground.
+Phone Whisper is a single-module Android app (Kotlin, package `com.kafkasl.phonewhisper`, minSdk 30, targetSdk 36, compileSdk 37, JDK 17, arm64-v8a only; AGP 9 with its built-in Kotlin, Gradle 9). It shows a floating push-to-talk overlay button, records audio, trims silence (Silero VAD), transcribes it locally (sherpa-onnx: Parakeet, Whisper, Moonshine) or in the cloud (OpenAI, OpenRouter, or a custom OpenAI-compatible server), optionally cleans up the text with a chat model from one of those providers, and inserts the result into the focused text field of whatever app is in the foreground. This repo is a fork of kafkasl/phone-whisper; README.md ends with a short development history.
 
 ## Commands
 
@@ -36,7 +36,7 @@ CI (`.github/workflows/ci.yml`) runs the unit tests and builds the debug APK on 
 
 ## Architecture
 
-There are only two Android components (see `AndroidManifest.xml`). They share state through `SharedPreferences("phonewhisper")`.
+The Android components (see `AndroidManifest.xml`) are the settings activities, the accessibility service and the download service. They share state through `SharedPreferences("phonewhisper")` (`Prefs.of(ctx)`).
 
 - **Settings screens** are built programmatically in Kotlin; there are no layout XML files. They extend `SettingsScreen` (row helpers `settingsRow`/`switchRow`/`toggleRow`/`choiceRow`/`navRow`; rows that show a value register an updater with `onRefresh`, and `refresh()` runs them on resume and after each change). `MainActivity` has status, setup, transcription (cloud provider/model or the local model list) and cleanup. `ApiKeysActivity` holds the API keys (masked, `FLAG_SECURE` dialog that never shows the saved key) and the custom server address. `ButtonSettingsActivity` and `AdvancedSettingsActivity` hold the switchable options. Their pref keys and defaults are in `Prefs.kt`. Screens call `WhisperAccessibilityService.instance?.reloadModel()` when the selected model, the thread count or the local/cloud mode changes; the service listens to pref changes for the overlay mode and idle timeout.
 - **`DownloadService`** is a foreground service (`dataSync`, wake lock, progress notification) that keeps model downloads alive while the screen is off. `ModelDownloader` does the work.

@@ -6,114 +6,79 @@
 
 Push-to-talk dictation for Android.
 
-Phone Whisper lets you speak into most apps without switching keyboards. Tap the floating button, speak, tap again, and your text is inserted into the currently focused text field when the app exposes a standard Android input field.\
+Phone Whisper lets you speak into most apps without switching keyboards. Tap the floating button, speak, tap again, and your text is inserted into the currently focused text field when the app exposes a standard Android input field.
 
-It supports:
+This repository is a fork of [kafkasl/phone-whisper](https://github.com/kafkasl/phone-whisper) by Pol Alvarez. The [development history](#development-history) at the end shows what was added here.
 
-- **Local on-device transcription** with sherpa-onnx
-- **Cloud transcription** with OpenAI's speech-to-text models or any speech-to-text model on [OpenRouter](https://openrouter.ai)
-- **Optional cleanup** with OpenAI or any OpenRouter chat model to fix punctuation and grammar
+## Features
 
-If you try it and it genuinely saves you time, consider [sponsoring](https://github.com/sponsors/kafkasl)
+**Transcription**
+- **Local, on-device** with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx): Parakeet (110M, 0.6B, Ultra), Whisper (Base, Small) and Moonshine. Audio never leaves the phone, and local mode never falls back to the cloud.
+- **Cloud** with OpenAI, [OpenRouter](https://openrouter.ai) (any speech-to-text model there), or your own **OpenAI-compatible server** (Groq, a Whisper server on your computer). The model is selectable per provider, from the provider's live model list.
+- **Languages**: Parakeet 0.6B and Ultra understand 25 European languages including German, Whisper 99 languages. A **Language** setting (default: detect automatically) fixes the language for Whisper and the cloud.
+- **Silence trimming** with Silero VAD before transcribing: faster, cheaper, and no invented text for silent stretches. If no speech is detected, nothing is sent; tapping retry sends the untrimmed recording.
 
+**Cleanup (optional)**
+- A chat model (OpenAI, OpenRouter or your own server) fixes punctuation, grammar and obvious recognition errors. It keeps your language and never translates.
+- Presets: *Simple cleanup* (default), *Dev cleanup* (turns "command mode …" into shell commands), or your own prompt.
 
-## Why I built this
+**The button**
+- Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge and stays there across rotation.
+- Level bars while recording, a spinner while transcribing, and a short vibration on start and stop.
+- If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, hold to discard it.
+- Turning the screen off while recording cancels the recording.
 
-- I like SwiftKey and want to keep it as keyboard but...
-- Most keyboard dictation felt too inaccurate
-- Gemini's voice input auto submits your transcription (which is pretty bad) so you can't edit it before sending
-- Post processing yields much better results, specially adding a list of keywords and technical terms you often use
-- Inserting text into the field you're already using lets you keep editing it like any other draft.
+**Inserting text**
+- Only into the focused field, never into another field on the screen.
+- By default the text is pasted via the clipboard, which works in the most apps. With **Keep my clipboard**, it is written straight into the field and your clipboard stays untouched. The clipboard is only used as a fallback then.
+- Copied transcripts are marked sensitive, so Android hides them in the clipboard preview.
+
+**Models and memory**
+- Downloads run in the background with a progress notification, also with the screen off. Every file is checked against a pinned SHA-256.
+- Models can be deleted. Files a model doesn't need are removed after installing.
+- The model can be unloaded after a few idle minutes (default 5) to save memory. It loads again while you speak the next time.
 
 ## Install
 
-### Easiest: download the APK
+### Download the APK
 
-Grab the latest APK from [GitHub Releases](https://github.com/kafkasl/phone-whisper/releases).
+Grab the latest APK from [GitHub Releases](https://github.com/evilknivel/phone-whisper/releases), open it on your phone and install it.
 
-Open it on your phone, install it, then launch the app once to finish setup.
+Android blocks the accessibility permission for apps installed from a file ("restricted settings"). If enabling the service shows "App was denied access": open **Settings → Apps → Phone Whisper → ⋮ → Allow restricted settings**, then enable the service again.
 
 ### Build from source
 
 Requires JDK 17 and an Android SDK with platform 37 (set `ANDROID_HOME` or `sdk.dir` in `local.properties`).
 
 ```bash
-git clone https://github.com/kafkasl/phone-whisper.git && cd phone-whisper
+git clone https://github.com/evilknivel/phone-whisper.git && cd phone-whisper
 make build
 ```
 
-APK output:
-
-```bash
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-If you use ADB:
-
-```bash
-make adb-install
-```
-
-## How it works
-
-1. A small button floats on screen, by default only while a keyboard is open
-2. Tap once to start recording; bars in the button follow your voice
-3. Tap again to stop
-4. Silence is trimmed, then the audio is transcribed locally or in the cloud
-5. The text is inserted into the focused text field
-6. If insertion fails, the text is copied to the clipboard
-7. If transcription fails (no network, wrong key, ...), the button turns orange: tap to retry the same recording, hold to discard it
-
-Turning the screen off while recording cancels the recording.
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. With a phone connected over ADB, `make adb-install` builds and installs it (no restricted-settings prompt this way).
 
 ## Setup
-
-### First-time setup
 
 1. Open **Phone Whisper**
 2. Grant the **audio recording** permission
 3. Enable the **Accessibility Service**
 4. Choose your transcription mode:
-   - **Local**: download a model in the app
-   - **Cloud**: pick OpenAI, OpenRouter or a custom OpenAI-compatible server (Groq, a Whisper server on your computer) and set its API key under **More settings → API keys**. You can choose the model for each provider.
+   - **Local**: download a model in the list and tap it to select it. For German, use Parakeet 0.6B or Ultra.
+   - **Cloud**: switch on **Use cloud transcription**, pick a provider and model, and set its API key under **More settings → API keys**.
 
-Once setup is done, the floating button is ready.
+The **Status** line at the top shows what is still missing, for example "Setup required: accessibility service". When it says "Ready", open any app with a text field and tap the button.
 
-### Settings
+## Settings
 
-The main screen holds setup, transcription and cleanup. Everything else is under **More settings**:
+The main screen holds status, setup, transcription (mode, language, models or cloud provider) and cleanup. Everything else is under **More settings**:
 
-- **API keys**: OpenAI, OpenRouter, and the address and key of a custom server
-- **Button & insertion**: show the button always or only with a keyboard, vibration, cancelling on screen off, and **Keep my clipboard** (write text straight into the field instead of pasting it)
-- **Advanced**: CPU threads, freeing the model's memory when idle, silence trimming, microphone source
-
-## Why does it need Accessibility?
-
-Phone Whisper uses Android Accessibility Service for one narrow reason: to insert dictated text into the currently focused text field across apps.
-
-It does **not** replace your keyboard. It does **not** run background automation. It only acts after you explicitly tap the overlay button.
-
-## Privacy
-
-Phone Whisper supports two modes:
-
-- **Local mode**: audio stays on-device. If the local model isn't ready, the app tells you instead of falling back to the cloud.
-- **Cloud mode**: audio is sent directly from your device to the transcription API of the provider you pick (OpenAI, OpenRouter or your own server)
-- **Optional cleanup**: transcript text is sent directly from your device to the chat API of the provider you pick
-
-I don't run a backend for this app. In cloud mode, requests go straight from your phone to the provider using your own API key. OpenRouter forwards requests to the provider of the model you choose.
-
-Full policy: [PRIVACY.md](PRIVACY.md)
+| Page | Settings |
+|---|---|
+| **API keys** | OpenAI and OpenRouter keys; address and key of a custom server. Keys are entered in a masked field that never shows the saved key and can't be screenshotted. |
+| **Button & insertion** | Show the button only with a keyboard or always; vibration; cancel on screen off; *Keep my clipboard* |
+| **Advanced** | CPU threads for local models (default 4); free model memory when idle (never, 2–30 min, default 5); trim silence (default on); microphone source (speech recognition or standard microphone) |
 
 ## Local models
-
-Models are stored in app storage under:
-
-```bash
-/data/data/com.kafkasl.phonewhisper/files/models/
-```
-
-Current catalog:
 
 | Model | Size on device | Languages | Notes |
 |---|---:|---|---|
@@ -124,55 +89,79 @@ Current catalog:
 | Parakeet 0.6B | 671 MB | 25 European languages | Best quality |
 | Parakeet Ultra | 630 MB | 25 European languages | Most accurate |
 
-**Language:** Parakeet detects the spoken language itself. Whisper and cloud transcription use the **Language** setting on the main screen: "Detect automatically" by default, or a fixed language if short dictations come out in the wrong one. (Without it, Whisper would translate other languages into English.) The English-only Whisper Base of earlier versions stays usable while installed but is no longer offered.
+Tap a model to download it, tap it again to select it, and use ✕ to delete it. Parakeet detects the spoken language itself; Whisper uses the **Language** setting. The English-only Whisper Base of earlier versions stays usable while installed but is no longer offered.
 
-Tap a model to download it, tap it again to select it, and use ✕ to delete it. Downloads keep running with the screen off and show their progress in a notification. Under **More settings → Advanced** you can set how many CPU cores local transcription uses (default 4) and whether the model is unloaded after a few idle minutes to save memory.
+Most models are downloaded as individual files from Hugging Face (the sherpa-onnx mirrors and [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), pinned to a commit. Parakeet 110M comes from the sherpa-onnx release archive. Models live in app storage under `/data/data/com.kafkasl.phonewhisper/files/models/`.
 
-Most models are downloaded as individual files from Hugging Face (the sherpa-onnx mirrors and [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), pinned to a commit and checked against their SHA-256. Parakeet 110M comes from the sherpa-onnx release archive. Files the app doesn't load (full-precision copies, test recordings) are deleted after installing.
+## Cloud providers
+
+| Provider | Transcription default | Cleanup default | Notes |
+|---|---|---|---|
+| OpenAI | `gpt-4o-mini-transcribe` | `gpt-4o-mini` | Model list loads with your API key |
+| OpenRouter | `openai/whisper-large-v3` | `openai/gpt-4o-mini` | Public model list, filterable by typing |
+| Custom | `whisper-1` | `gpt-4o-mini` | Any OpenAI-compatible server, e.g. `https://api.groq.com/openai/v1` or `http://192.168.1.10:8000`. Key optional; plain http allowed for your own network. |
+
+Transcription and cleanup pick their provider separately. Models that reject `temperature` (OpenAI's reasoning models) are retried without it.
+
+## Why does it need Accessibility?
+
+Phone Whisper uses the Android Accessibility Service to insert dictated text into the focused text field across apps, and to see whether a keyboard is open so the button can be shown only then.
+
+It does **not** replace your keyboard, does **not** run background automation, and does **not** log the contents of text fields. It only acts after you tap the button.
+
+## Privacy
+
+- **Local mode**: audio stays on the device, also when the model is missing or still loading.
+- **Cloud mode**: audio goes directly from your device to the provider you pick, with your own API key. If no speech is detected, nothing is sent unless you tap retry.
+- **Cleanup**: the transcript goes directly to the chat API of the provider you pick.
+
+There is no backend. Full policy: [PRIVACY.md](PRIVACY.md)
+
+## App compatibility
+
+Phone Whisper works best in apps that use standard Android text fields. Some apps use custom text surfaces or block paste; then the transcript stays on the clipboard so you can paste it yourself.
+
+**Termux:** the terminal area is not a standard text field. Swipe the extra keys row (`ESC`, `CTRL`, `ALT`, …) to switch to Termux's native text input box and dictate there.
+
+**Xiaomi and other phones with aggressive battery saving:** if the status says the accessibility service is "on, but not running", turn it off and on again and allow **Autostart** and **no battery restrictions** for Phone Whisper.
 
 ## Development
 
 ```bash
-make build       # build debug APK
-make test        # run unit tests
-make integration-test MODELS=... WAV=...  # run every catalog model through sherpa-onnx (Linux x64, see CLAUDE.md)
-make adb-install # build + install via ADB
-make clean       # clean build artifacts
+make build             # debug APK
+make test              # unit tests
+make integration-test MODELS=/dir WAV=en.wav [WAV_DE=de.wav]   # every catalog model through the real sherpa-onnx JNI (Linux x64)
+make adb-install       # build + install via ADB
+make clean
 ```
 
-## App compatibility
-
-Phone Whisper works best in apps that use standard Android text fields.
-Some apps use custom text surfaces or terminal-style views, which may not support direct accessibility paste.
-When insertion is not possible, Phone Whisper falls back to copying the transcript to the clipboard.
-
-### Termux
-
-Termux's main terminal area is not a standard Android text field, so direct insertion may not work there.
-
-To use Phone Whisper in Termux:
-
-1. Focus Termux
-2. Swipe the extra keys row (`ESC`, `CTRL`, `ALT`, arrows, etc.) left or right
-3. Switch to Termux's native text input box
-4. Dictate there
-
-Once text is inserted into the native input box, Termux sends it to the terminal normally.
+CI runs the unit tests and builds the APK on every push. Pushing a tag like `v0.5.0` builds a release APK and attaches it to a GitHub release (pre-release for tags with a `-`). To sign releases with a fixed key, set the secrets described in `.github/workflows/release.yml`. [CLAUDE.md](CLAUDE.md) describes the architecture.
 
 ## Current limitations
 
 - Accessibility permission is required for cross-app insertion
-- Some apps may block paste or text injection
-- Some apps use custom input surfaces instead of standard Android text fields
-- Local models are large
-- Cloud mode requires your own OpenAI or OpenRouter API key
-
-## Support the project
-
-If Phone Whisper saves you time, you can sponsor the project on GitHub:
-
-- https://github.com/sponsors/kafkasl
+- Some apps block paste or text injection, or use custom input surfaces
+- Good local models are large (130–670 MB)
+- Cloud mode requires your own API key (or your own server)
 
 ## License
 
-Personal project. Do whatever you want with it.
+Apache License 2.0, see [LICENSE](LICENSE). If Phone Whisper saves you time, consider [sponsoring the original author](https://github.com/sponsors/kafkasl).
+
+## Development history
+
+**Original app (March–August 2026, Pol Alvarez)**
+- MVP: floating overlay button, recording, OpenAI Whisper transcription and insertion through the accessibility service
+- Local transcription with sherpa-onnx and a model downloader (Parakeet, Whisper, Moonshine)
+- Material 3 settings screen, cleanup with OpenAI chat models and prompt presets, improved insertion fallback, launcher icon, GitHub Pages site, license
+
+**This fork (October 2026, with Claude Code)**
+1. **Foundations**: CLAUDE.md, the sherpa-onnx native libraries pinned and committed (`make jni-libs`)
+2. **OpenRouter**: separate provider and model choice for transcription and cleanup, with the live model list
+3. **Parakeet Ultra**: support for models published as loose files with SHA-256 checks; Ultra added and verified with real recordings
+4. **Releases and CI**: release workflow on tags, CI on every push, signing via secrets
+5. **Toolchain update**: AGP 9, Gradle 9, Kotlin 2.4, targetSdk 36, sherpa-onnx 1.13.8 (native libs and Kotlin API re-vendored)
+6. **Review fixes**: local mode no longer sends audio to the cloud when the model isn't ready; old models are freed; a busy microphone no longer crashes the service; longer network timeouts; text only goes into the focused field; interrupted installs aren't treated as installed; models can be deleted; Whisper Base actually loads; OpenAI model choice; CPU threads setting; protected API key entry
+7. **Setup status** that names what is missing and notices a service that is on but not running
+8. **Features from the original repo's open pull requests**, reimplemented: button only with a keyboard, retry state with readable errors, level bars, cancel on screen off, inserting without the clipboard, background downloads, direct Hugging Face downloads, freeing the model when idle, custom OpenAI-compatible server. Plus silence trimming (VAD), language labels, pruning unused model files, a cleanup prompt that keeps the language, privacy fixes, vibration, microphone source, and settings split into sub-pages
+9. **Languages**: language setting for Whisper and the cloud, multilingual Whisper Base and Whisper Small (Whisper had translated German into English with sherpa-onnx's default), complete endings for Whisper Base
