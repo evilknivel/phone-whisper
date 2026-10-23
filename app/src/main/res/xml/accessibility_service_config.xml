@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- flagRetrieveInteractiveWindows: getWindows() lists the keyboard window, which "show the button
+     only with the keyboard" needs. Window events tell the service when the keyboard opens or closes. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeViewFocused"
+    android:accessibilityEventTypes="typeWindowsChanged|typeWindowStateChanged"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"

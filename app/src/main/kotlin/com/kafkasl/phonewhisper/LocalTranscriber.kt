@@ -45,6 +45,18 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
 
         fun hasModelFiles(dir: File) = detectModelConfig(dir, 1) != null
 
+        /** The files the recognizer loads from [dir], or null if it holds no recognizable model. */
+        fun usedFiles(dir: File): List<File>? {
+            val c = detectModelConfig(dir, 1)?.modelConfig ?: return null
+            return listOf(
+                c.tokens,
+                c.transducer.encoder, c.transducer.decoder, c.transducer.joiner,
+                c.whisper.encoder, c.whisper.decoder,
+                c.moonshine.preprocessor, c.moonshine.encoder, c.moonshine.uncachedDecoder, c.moonshine.cachedDecoder,
+                c.nemo.model,
+            ).filter { it.isNotEmpty() }.map(::File)
+        }
+
         /** Create a LocalTranscriber for the given model directory. Returns null on failure. */
         fun create(modelDir: File, numThreads: Int): LocalTranscriber? {
             if (!modelDir.isDirectory) {

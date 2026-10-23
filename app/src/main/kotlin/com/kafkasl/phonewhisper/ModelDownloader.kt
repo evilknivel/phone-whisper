@@ -15,28 +15,45 @@ data class ModelFile(val name: String, val size: Long, val sha256: String)
 /**
  * [archive] is the install dir name under files/models/. Models without [files] are fetched as
  * `<archive>.tar.bz2` from the sherpa-onnx release; models with [files] download each file from
- * [baseUrl] and verify its SHA-256.
+ * [baseUrl] (pinned to a commit) and verify its SHA-256, which is faster than decoding bz2 on the
+ * phone. [sizeMb] is the space the installed model takes; [languages] is shown in the list.
  */
 data class Model(
     val name: String,
     val archive: String,
     val sizeMb: Int,
     val quality: String,
+    val languages: String,
     val recommended: Boolean = false,
     val baseUrl: String? = null,
     val files: List<ModelFile> = emptyList(),
 )
 
+private const val HF = "https://huggingface.co"
+
 val MODEL_CATALOG = listOf(
     Model("Parakeet 110M", "sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8",
-        100, "★★★ Best value", recommended = true),
+        132, "★★★ Best value", "English only", recommended = true),
     Model("Whisper Base", "sherpa-onnx-whisper-base.en",
-        199, "★★★"),
+        161, "★★★", "English only",
+        baseUrl = "$HF/csukuangfj/sherpa-onnx-whisper-base.en/resolve/59eea950fc76df2453efb57e6c0fd334548e8ffe",
+        files = listOf(
+            ModelFile("base.en-encoder.int8.onnx", 29_120_534, "ef6b936f4c9b1d90a3b68634b60c4ed8576b26172b33c2535ec0e933c9edb823"),
+            ModelFile("base.en-decoder.int8.onnx", 130_669_978, "f7162ad6db2dbef16cfaeaa7f945b9d7dd9c1b8d472f6aca82f2273d185e4d41"),
+            ModelFile("base.en-tokens.txt", 835_554, "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930"),
+        )),
     Model("Parakeet 0.6B", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
-        465, "★★★★ Best quality"),
+        671, "★★★★ Best quality", "25 European languages incl. German",
+        baseUrl = "$HF/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/2bda32ec70b097a55adaa07d9a7173915b43cc78",
+        files = listOf(
+            ModelFile("encoder.int8.onnx", 652_184_281, "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247"),
+            ModelFile("decoder.int8.onnx", 11_845_275, "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e"),
+            ModelFile("joiner.int8.onnx", 6_355_277, "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3"),
+            ModelFile("tokens.txt", 93_939, "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"),
+        )),
     Model("Parakeet Ultra", "sherpa-onnx-parakeet-ultra-int8",
-        600, "★★★★★ Most accurate",
-        baseUrl = "https://huggingface.co/mldecode/parakeet-ultra-onnx-int8/resolve/3282a6e32885b431c1543d58c7710e6e3412eac0",
+        630, "★★★★★ Most accurate", "25 European languages incl. German",
+        baseUrl = "$HF/mldecode/parakeet-ultra-onnx-int8/resolve/3282a6e32885b431c1543d58c7710e6e3412eac0",
         files = listOf(
             ModelFile("encoder.int8.onnx", 611_879_344, "181382735a719c75076d13658dc4418de4b566aef39935ca0f8f55da16928f4e"),
             ModelFile("decoder.int8.onnx", 12_257_685, "0ba8ace2de04bb2d9a6b20ed2d67138c23df4a385f268438df0ff200502de77a"),
@@ -44,9 +61,16 @@ val MODEL_CATALOG = listOf(
             ModelFile("tokens.txt", 93_939, "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"),
         )),
     Model("Moonshine Tiny", "sherpa-onnx-moonshine-tiny-en-int8",
-        103, "★★☆ Fast"),
+        124, "★★☆ Fast", "English only",
+        baseUrl = "$HF/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/bf2b762c076d8ea61e2af0b3851c9564fb77552e",
+        files = listOf(
+            ModelFile("preprocess.onnx", 6_800_738, "f33addce61a143460fe753b5ee5b7db255e5140b5b779c065b94f6c83ff0bf4e"),
+            ModelFile("encode.int8.onnx", 18_249_187, "8774dfba578de027ec6595c2c654a0836434489bc963a0db124a7f181f571acb"),
+            ModelFile("uncached_decode.int8.onnx", 53_216_096, "216737000dd5881a17aa043f6bbd286add33e4c3b0ae257153e2ec15438bdc41"),
+            ModelFile("cached_decode.int8.onnx", 45_264_830, "2aff28bba6a03d8dcf5c9feac45462629bae37317442299f28115ad09da773f6"),
+            ModelFile("tokens.txt", 436_688, "1165c2aeb9f72f457a83be2d459a09054f27490acd9b41bd43794dfd25e296ea"),
+        )),
 )
-
 
 sealed class DownloadState {
     data class Downloading(val progress: Float) : DownloadState()
@@ -116,6 +140,27 @@ object ModelDownloader {
         return true
     }
 
+    fun activeCount() = active.size
+
+    /**
+     * Delete files the recognizer doesn't load: full-precision copies next to the int8 files and
+     * test recordings. Whisper Base shrinks from 433 MB to 161 MB this way.
+     */
+    fun pruneUnusedFiles(dir: File) {
+        val used = LocalTranscriber.usedFiles(dir) ?: return
+        val keep = used.map { it.canonicalFile }.toSet()
+        dir.listFiles()?.forEach { file ->
+            if (file.name != INSTALLED_MARKER && file.canonicalFile !in keep) file.deleteRecursively()
+        }
+    }
+
+    /** Prune installs made before [pruneUnusedFiles] existed. Cheap when there is nothing to do. */
+    fun pruneInstalled(ctx: Context) {
+        for (model in MODEL_CATALOG) {
+            if (isInstalled(ctx, model) && state(model) == null) pruneUnusedFiles(modelDir(ctx, model))
+        }
+    }
+
     /** Delete an installed model. Refused (false) while it is downloading. */
     fun delete(ctx: Context, model: Model): Boolean {
         if (active.containsKey(model.archive)) return false
@@ -150,6 +195,7 @@ object ModelDownloader {
     fun installArchive(staging: File, archive: String, target: File) {
         val extracted = File(staging, archive).takeIf { it.isDirectory } ?: staging
         if (!LocalTranscriber.hasModelFiles(extracted)) throw IOException("Archive contains no usable model")
+        pruneUnusedFiles(extracted)
         File(extracted, INSTALLED_MARKER).createNewFile()
         moveIntoPlace(extracted, target)
     }

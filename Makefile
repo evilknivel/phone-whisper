@@ -42,7 +42,7 @@ integration-test: $(SHERPA_LINUX_JNI)
 	@test -n "$(MODELS)" -a -n "$(WAV)" || (echo "Usage: make integration-test MODELS=... WAV=..." && exit 1)
 	set -o pipefail; SHERPA_JNI_DIR=$(abspath $(SHERPA_LINUX_JNI)) LD_LIBRARY_PATH=$(abspath $(SHERPA_LINUX_JNI)) \
 	PHONE_WHISPER_MODELS_DIR=$(abspath $(MODELS)) PHONE_WHISPER_TEST_WAV=$(abspath $(WAV)) \
-	./gradlew testDebugUnitTest --tests '*LocalTranscriberIntegrationTest*' --rerun -i | grep -E '^ *(Parakeet|Whisper|Moonshine)|BUILD|FAIL'
+	./gradlew testDebugUnitTest --tests '*LocalTranscriberIntegrationTest*' --rerun -i | grep -E '^ *(Parakeet|Whisper|Moonshine|Trimmed)|BUILD|FAIL'
 
 $(SHERPA_LINUX_JNI):
 	mkdir -p build

@@ -51,7 +51,7 @@ class ModelDownloaderTest {
     @Test fun `loose-file models have a url and valid checksums`() {
         for (model in MODEL_CATALOG.filter { it.files.isNotEmpty() }) {
             assertNotNull(model.name, model.baseUrl)
-            assertTrue(model.name, model.files.any { it.name == "tokens.txt" })
+            assertTrue(model.name, model.files.any { it.name == "tokens.txt" || it.name.endsWith("-tokens.txt") })
             for (f in model.files) {
                 assertTrue(f.name, f.size > 0)
                 assertTrue(f.name, Regex("[0-9a-f]{64}").matches(f.sha256))

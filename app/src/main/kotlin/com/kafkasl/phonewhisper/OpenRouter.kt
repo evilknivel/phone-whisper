@@ -49,13 +49,25 @@ object OpenAiModels {
             .distinct().sorted()
     }
 
-    /** Needs an OpenAI API key. Callback fires on a background thread. */
-    fun listModels(apiKey: String, task: CloudTask, callback: (List<String>?, String?) -> Unit) {
-        val request = Request.Builder()
-            .url("https://api.openai.com/v1/models")
-            .header("Authorization", "Bearer $apiKey")
-            .build()
-        fetch(request, callback) { parseModels(it, task) }
+    /**
+     * `/models` of OpenAI (needs the API key) or of a custom OpenAI-compatible server. Custom
+     * servers name models freely, so their list isn't filtered. Callback fires on a background thread.
+     */
+    fun listModels(target: CloudTarget, task: CloudTask, callback: (List<String>?, String?) -> Unit) {
+        val request = try {
+            Request.Builder().url("${target.baseUrl}/models").auth(target).build()
+        } catch (e: IllegalArgumentException) {
+            callback(null, "Invalid API address"); return
+        }
+        fetch(request, callback) {
+            if (target.provider == CloudProvider.CUSTOM) parseIds(it) else parseModels(it, task)
+        }
+    }
+
+    fun parseIds(json: String): List<String> {
+        val data = JSONObject(json).getJSONArray("data")
+        return (0 until data.length()).map { data.getJSONObject(it).optString("id") }
+            .filter { it.isNotBlank() }.distinct().sorted()
     }
 }
 

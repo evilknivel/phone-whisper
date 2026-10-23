@@ -8,7 +8,8 @@ import java.io.IOException
 import java.util.Base64
 
 object TranscriberClient {
-    data class Result(val text: String?, val error: String?)
+    /** [statusCode] is the HTTP status of a failed request, null for network errors and successes. */
+    data class Result(val text: String?, val error: String?, val statusCode: Int? = null)
 
     fun parseResponse(json: String): Result = try {
         val obj = JSONObject(json)
@@ -23,12 +24,17 @@ object TranscriberClient {
 
     /** Successful bodies are parsed; error bodies give the API's message, or `HTTP <code>` if they have none. */
     fun parseResponse(code: Int, body: String): Result =
-        if (code in 200..299) parseResponse(body) else Result(null, apiErrorMessage(code, body))
+        if (code in 200..299) parseResponse(body) else Result(null, apiErrorMessage(code, body), code)
 
     fun transcribe(wavData: ByteArray, target: CloudTarget, callback: (Result) -> Unit) {
-        val request = when (target.provider) {
-            CloudProvider.OPENAI -> openAiRequest(wavData, target)
-            CloudProvider.OPENROUTER -> openRouterRequest(wavData, target)
+        if (target.baseUrl.isBlank()) { callback(Result(null, "Set the custom API address in Phone Whisper")); return }
+        val request = try {
+            when (target.provider) {
+                CloudProvider.OPENAI, CloudProvider.CUSTOM -> openAiRequest(wavData, target)
+                CloudProvider.OPENROUTER -> openRouterRequest(wavData, target)
+            }
+        } catch (e: IllegalArgumentException) {
+            callback(Result(null, "Invalid API address: ${e.message}")); return
         }
 
         Http.client.newCall(request).enqueue(object : Callback {
@@ -49,8 +55,8 @@ object TranscriberClient {
             .build()
 
         return Request.Builder()
-            .url("https://api.openai.com/v1/audio/transcriptions")
-            .header("Authorization", "Bearer ${target.apiKey}")
+            .url("${target.baseUrl}/audio/transcriptions")
+            .auth(target)
             .post(body)
             .build()
     }
@@ -58,8 +64,8 @@ object TranscriberClient {
     /** OpenRouter's STT endpoint also takes multipart now, but JSON with base64 audio is its documented main format. */
     private fun openRouterRequest(wavData: ByteArray, target: CloudTarget): Request =
         Request.Builder()
-            .url("${OpenRouter.BASE_URL}/audio/transcriptions")
-            .header("Authorization", "Bearer ${target.apiKey}")
+            .url("${target.baseUrl}/audio/transcriptions")
+            .auth(target)
             .post(openRouterBody(wavData, target.model).toRequestBody("application/json".toMediaType()))
             .build()
 

@@ -23,6 +23,12 @@ fun missingSetup(
         AccessibilityState.RUNNING -> {}
     }
     if (useLocal && !hasLocalModel) add("a local model (download one below)")
-    if (!useLocal && transcription.apiKey.isBlank()) add("${transcription.provider.label} API key")
-    if (usePostProcessing && postProcessing.apiKey.isBlank()) add("${postProcessing.provider.label} API key for cleanup")
+    if (!useLocal) missingCloud(transcription)?.let { add(it) }
+    if (usePostProcessing) missingCloud(postProcessing)?.let { add("$it for cleanup") }
+}
+
+private fun missingCloud(target: CloudTarget): String? = when {
+    target.baseUrl.isBlank() -> "custom API address"
+    target.keyRequired && target.apiKey.isBlank() -> "${target.provider.label} API key"
+    else -> null
 }

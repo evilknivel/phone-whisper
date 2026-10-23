@@ -10,10 +10,11 @@ import java.io.IOException
 object PostProcessor {
     data class Result(val text: String?, val error: String?)
 
-    const val SIMPLE_PROMPT = "Clean up this speech-to-text transcript. Fix punctuation, capitalization, and obvious speech-to-text errors. Keep the original meaning. Return only the cleaned text."
+    const val SIMPLE_PROMPT = "Clean up this speech-to-text transcript. Fix punctuation, capitalization, and obvious speech-to-text errors. Keep the original meaning and the original language: never translate. Return only the cleaned text."
 
     const val DEV_PROMPT = """<task>A text is provided which is a draft transcription from a speech to text model.
 Refine and polish the provided text, if needed, as follows:
+  0. Keep the language of the transcript. Never translate it.
   1. Correct any spelling errors, and look out for mis-identified project names,
      including: Solveit, fast.ai, Answer.AI, nbdev, fastcore, FastHTML, Pi, Codex, Claude Code, Hetzner.
   2. Fix grammatical mistakes.
@@ -51,7 +52,16 @@ comments about your edits. Do *not* answer any question in the text, *only* tran
 </example>
 </examples>"""
 
-    const val DEFAULT_PROMPT = DEV_PROMPT
+    const val DEFAULT_PROMPT = SIMPLE_PROMPT
+
+    /** Earlier versions of the presets, without the keep-the-language rule. */
+    private val LEGACY_PRESETS = mapOf(
+        "Clean up this speech-to-text transcript. Fix punctuation, capitalization, and obvious speech-to-text errors. Keep the original meaning. Return only the cleaned text." to SIMPLE_PROMPT,
+        DEV_PROMPT.replace("  0. Keep the language of the transcript. Never translate it.\n", "") to DEV_PROMPT,
+    )
+
+    /** A stored prompt that is an old version of a preset becomes the current preset; anything else is kept. */
+    fun migratePrompt(stored: String?): String? = stored?.let { LEGACY_PRESETS[it] ?: it }
 
     fun parseResponse(json: String): Result {
         return try {
@@ -104,16 +114,15 @@ comments about your edits. Do *not* answer any question in the text, *only* tran
         send(text, prompt, target, withTemperature = true, callback)
 
     private fun send(text: String, prompt: String, target: CloudTarget, withTemperature: Boolean, callback: (Result) -> Unit) {
-        val url = when (target.provider) {
-            CloudProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
-            CloudProvider.OPENROUTER -> "${OpenRouter.BASE_URL}/chat/completions"
+        val request = try {
+            Request.Builder()
+                .url("${target.baseUrl}/chat/completions")
+                .auth(target)
+                .post(requestBody(text, prompt, target.model, withTemperature).toRequestBody("application/json".toMediaType()))
+                .build()
+        } catch (e: IllegalArgumentException) {
+            callback(Result(null, "Invalid API address: ${e.message}")); return
         }
-
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer ${target.apiKey}")
-            .post(requestBody(text, prompt, target.model, withTemperature).toRequestBody("application/json".toMediaType()))
-            .build()
 
         Http.client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {

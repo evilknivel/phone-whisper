@@ -37,6 +37,50 @@ class LocalTranscriberIntegrationTest {
         }
     }
 
+    @Test fun `silence trimmer cuts pauses and keeps the speech`() {
+        val modelsDir = System.getenv("PHONE_WHISPER_MODELS_DIR")?.let(::File)
+        val wav = System.getenv("PHONE_WHISPER_TEST_WAV")?.let(::File)
+        assumeTrue(System.getenv("SHERPA_JNI_DIR") != null && modelsDir != null && wav != null)
+
+        val (raw, rate) = readWav(wav!!)
+        val speech = resampleTo16k(raw, rate)
+        val pause = FloatArray(2 * 16000)
+        val padded = pause + speech + pause + speech + pause
+
+        val trimmer = SilenceTrimmer.create(File("src/main/assets/silero_vad.onnx"))!!
+        try {
+            assertNull("pure silence", trimmer.trim(FloatArray(5 * 16000)))
+            val trimmed = trimmer.trim(padded)!!
+            println("Trimmed ${padded.size / 16000.0}s -> ${trimmed.size / 16000.0}s (speech ${2 * speech.size / 16000.0}s)")
+            assertTrue("removes most of the 6 s of pauses", trimmed.size < padded.size - 4 * 16000)
+            assertTrue("keeps the speech", trimmed.size >= 2 * speech.size * 0.9)
+
+            val model = MODEL_CATALOG.first()
+            val transcriber = LocalTranscriber.create(File(modelsDir, model.archive), 2)!!
+            try {
+                val text = transcriber.transcribe(trimmed, 16000)
+                println("Trimmed audio with ${model.name}: $text")
+                assertEquals(2, Regex("your country", RegexOption.IGNORE_CASE).findAll(text.replace(",", "")).count() / 2)
+            } finally {
+                transcriber.release()
+            }
+        } finally {
+            trimmer.release()
+        }
+    }
+
+    private fun resampleTo16k(samples: FloatArray, rate: Int): FloatArray {
+        if (rate == 16000) return samples
+        val out = FloatArray((samples.size.toLong() * 16000 / rate).toInt())
+        for (i in out.indices) {
+            val pos = i.toDouble() * rate / 16000
+            val j = pos.toInt().coerceAtMost(samples.size - 2)
+            val f = (pos - j).toFloat()
+            out[i] = samples[j] * (1 - f) + samples[j + 1] * f
+        }
+        return out
+    }
+
     private fun <T> assertNotNull(message: String, value: T?): T? {
         org.junit.Assert.assertNotNull(message, value)
         return value
