@@ -1,6 +1,7 @@
 package com.kafkasl.phonewhisper
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -211,11 +212,14 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         ModelDownloader.addListener(downloadListener)
+        // The service often connects a moment after we return from the accessibility settings.
+        WhisperAccessibilityService.onRunningChanged = { refresh() }
         refresh()
     }
 
     override fun onPause() {
         ModelDownloader.removeListener(downloadListener)
+        WhisperAccessibilityService.onRunningChanged = null
         super.onPause()
     }
     override fun onRequestPermissionsResult(c: Int, p: Array<String>, r: IntArray) {
@@ -406,7 +410,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refresh() {
         val audio = hasPerm(Manifest.permission.RECORD_AUDIO)
-        val acc = WhisperAccessibilityService.instance != null
+        val acc = accessibilityState()
         val useLocal = prefs().getBoolean("use_local", true)
         val usePostProcessing = prefs().getBoolean("use_post_processing", false)
         val transTarget = prefs().transcriptionTarget()
@@ -415,7 +419,12 @@ class MainActivity : AppCompatActivity() {
         val hasModel = installedModels.isNotEmpty()
 
         audioRowSub.text = if (audio) "Granted" else "Tap to grant permission"
-        accRowSub.text = if (acc) "Enabled" else "Tap to enable in settings"
+        accRowSub.text = when (acc) {
+            AccessibilityState.RUNNING -> "Enabled"
+            // The system killed the service (battery saver, app update) or blocked it (restricted settings).
+            AccessibilityState.ENABLED_NOT_RUNNING -> "On, but not running. Turn it off and on again; on Xiaomi also allow Autostart and no battery restrictions"
+            AccessibilityState.OFF -> "Tap to enable in settings"
+        }
 
         modelContainer.visibility = if (useLocal) View.VISIBLE else View.GONE
         cloudContainer.visibility = if (useLocal) View.GONE else View.VISIBLE
@@ -440,17 +449,22 @@ class MainActivity : AppCompatActivity() {
                 ?.let { selectModel(it) }
         }
 
-        // Ready logic
-        val localReady = useLocal && hasModel
-        val cloudReady = !useLocal && transTarget.apiKey.isNotBlank()
-        val postReady = !usePostProcessing || ppTarget.apiKey.isNotBlank()
-        val ready = audio && acc && (localReady || cloudReady) && postReady
+        val missing = missingSetup(audio, acc, useLocal, hasModel, transTarget, usePostProcessing, ppTarget)
+        val ready = missing.isEmpty()
 
-        statusSubtitle.text = if (ready) "Ready — tap the overlay dot to dictate" else "Setup required"
+        statusSubtitle.text = if (ready) "Ready — tap the overlay dot to dictate" else "Setup required: ${missing.joinToString()}"
         statusSubtitle.setTextColor(if (ready) attrColor(androidx.appcompat.R.attr.colorPrimary) else attrColor(android.R.attr.textColorSecondary))
         
         refreshAllCards()
         refreshPromptRows()
+    }
+
+    private fun accessibilityState(): AccessibilityState {
+        if (WhisperAccessibilityService.instance != null) return AccessibilityState.RUNNING
+        val self = ComponentName(this, WhisperAccessibilityService::class.java)
+        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            .orEmpty().split(':').any { ComponentName.unflattenFromString(it) == self }
+        return if (enabled) AccessibilityState.ENABLED_NOT_RUNNING else AccessibilityState.OFF
     }
 
     private fun maskedKey(provider: CloudProvider): String {

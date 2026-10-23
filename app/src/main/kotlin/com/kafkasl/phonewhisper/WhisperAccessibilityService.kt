@@ -39,6 +39,10 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     companion object {
         @Volatile var instance: WhisperAccessibilityService? = null
+            private set
+
+        /** Called on the main thread when the service starts or stops; MainActivity uses it to refresh its status. */
+        var onRunningChanged: (() -> Unit)? = null
         private const val TAG = "PhoneWhisper"
         private const val SAMPLE_RATE = 16000
         private const val BTN_DP = 44
@@ -99,6 +103,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         instance = this
+        onRunningChanged?.invoke()
         showOverlay()
         reloadModel()
     }
@@ -114,6 +119,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
+        onRunningChanged?.invoke()
         state = State.IDLE
         releaseRecorder()
         removeOverlay()
