@@ -57,14 +57,17 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
             ).filter { it.isNotEmpty() }.map(::File)
         }
 
-        /** Create a LocalTranscriber for the given model directory. Returns null on failure. */
-        fun create(modelDir: File, numThreads: Int): LocalTranscriber? {
+        /**
+         * Create a LocalTranscriber for the given model directory. Returns null on failure.
+         * [language] ("" = detect) only matters for multilingual Whisper models.
+         */
+        fun create(modelDir: File, numThreads: Int, language: String = ""): LocalTranscriber? {
             if (!modelDir.isDirectory) {
                 Log.e(TAG, "Model dir not found: $modelDir")
                 return null
             }
 
-            val config = detectModelConfig(modelDir, numThreads) ?: run {
+            val config = detectModelConfig(modelDir, numThreads, language) ?: run {
                 Log.e(TAG, "Could not detect model type in $modelDir")
                 return null
             }
@@ -80,7 +83,7 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
         }
 
         /** Auto-detect model type from files present in the directory. */
-        fun detectModelConfig(dir: File, numThreads: Int): OfflineRecognizerConfig? {
+        fun detectModelConfig(dir: File, numThreads: Int, language: String = ""): OfflineRecognizerConfig? {
             val p = dir.absolutePath
             val tokens = findTokens(dir) ?: return null
 
@@ -107,9 +110,15 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
             if (encoder != null && decoder != null && joiner == null) {
                 return OfflineRecognizerConfig(
                     modelConfig = OfflineModelConfig(
+                        // sherpa-onnx defaults to language "en", which makes a multilingual Whisper
+                        // translate other languages into English. "" detects the language.
                         whisper = OfflineWhisperModelConfig(
                             encoder = encoder,
                             decoder = decoder,
+                            language = language,
+                            task = "transcribe",
+                            // With the default 1000, Whisper Base drops the last sentence of a recording.
+                            tailPaddings = 2000,
                         ),
                         tokens = tokens,
                         numThreads = numThreads,

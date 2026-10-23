@@ -13,6 +13,7 @@ import java.nio.ByteOrder
  * - SHERPA_JNI_DIR: dir with the desktop libsherpa-onnx-jni.so of the same sherpa-onnx version
  * - PHONE_WHISPER_MODELS_DIR: dir with the models, one sub-dir per catalog `archive` name
  * - PHONE_WHISPER_TEST_WAV: 16-bit mono WAV of "Ask not what your country can do for you..."
+ * - PHONE_WHISPER_TEST_WAV_DE (optional): the German test WAV of the Parakeet 0.6B archive
  */
 class LocalTranscriberIntegrationTest {
 
@@ -30,9 +31,34 @@ class LocalTranscriberIntegrationTest {
                 val text = transcriber!!.transcribe(samples, sampleRate)
                 println("${model.name}: $text")
                 val words = text.lowercase().replace(Regex("[^a-z ]"), " ")
-                assertTrue("${model.name}: '$text'", "your country" in words.replace(Regex(" +"), " "))
+                // Both sentences: a model that drops the end of the recording fails here.
+                val count = Regex("your country").findAll(words.replace(Regex(" +"), " ")).count()
+                assertTrue("${model.name}: '$text'", count >= 2)
             } finally {
                 transcriber!!.release()
+            }
+        }
+    }
+
+    /** Optional PHONE_WHISPER_TEST_WAV_DE: "Alles hat ein Ende, nur die Wurst hat zwei." */
+    @Test fun `multilingual models transcribe German as German`() {
+        val modelsDir = System.getenv("PHONE_WHISPER_MODELS_DIR")?.let(::File)
+        val wav = System.getenv("PHONE_WHISPER_TEST_WAV_DE")?.let(::File)
+        assumeTrue(System.getenv("SHERPA_JNI_DIR") != null && modelsDir != null && wav != null)
+
+        val (samples, sampleRate) = readWav(wav!!)
+        for (model in MODEL_CATALOG.filter { "English only" !in it.languages }) {
+            // "" = detect; Whisper also gets the explicit language a user can pick.
+            val languages = if (model.name.startsWith("Whisper")) listOf("", "de") else listOf("")
+            for (language in languages) {
+                val transcriber = LocalTranscriber.create(File(modelsDir, model.archive), 2, language)!!
+                try {
+                    val text = transcriber.transcribe(samples, sampleRate)
+                    println("${model.name} [${language.ifEmpty { "auto" }}]: $text")
+                    assertTrue("${model.name}: '$text'", "Wurst" in text && "Ende" in text)
+                } finally {
+                    transcriber.release()
+                }
             }
         }
     }

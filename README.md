@@ -118,10 +118,13 @@ Current catalog:
 | Model | Size on device | Languages | Notes |
 |---|---:|---|---|
 | Parakeet 110M | 132 MB | English | Best value |
-| Whisper Base | 161 MB | English | Solid baseline |
+| Moonshine Tiny | 124 MB | English | Fastest |
+| Whisper Base | 161 MB | 99 languages | Small, many languages |
+| Whisper Small | 375 MB | 99 languages | More accurate Whisper |
 | Parakeet 0.6B | 671 MB | 25 European languages | Best quality |
 | Parakeet Ultra | 630 MB | 25 European languages | Most accurate |
-| Moonshine Tiny | 124 MB | English | Fastest |
+
+**Language:** Parakeet detects the spoken language itself. Whisper and cloud transcription use the **Language** setting on the main screen: "Detect automatically" by default, or a fixed language if short dictations come out in the wrong one. (Without it, Whisper would translate other languages into English.) The English-only Whisper Base of earlier versions stays usable while installed but is no longer offered.
 
 Tap a model to download it, tap it again to select it, and use ✕ to delete it. Downloads keep running with the screen off and show their progress in a notification. Under **More settings → Advanced** you can set how many CPU cores local transcription uses (default 4) and whether the model is unloaded after a few idle minutes to save memory.
 

@@ -37,12 +37,13 @@ test:
 	./gradlew testDebugUnitTest
 
 ## Load every catalog model through the real JNI and transcribe a WAV (Linux x64).
-## Usage: make integration-test MODELS=/dir/with/one/subdir/per/model WAV=/path/en.wav
+## Usage: make integration-test MODELS=/dir/with/one/subdir/per/model WAV=/path/en.wav [WAV_DE=/path/de.wav]
 integration-test: $(SHERPA_LINUX_JNI)
 	@test -n "$(MODELS)" -a -n "$(WAV)" || (echo "Usage: make integration-test MODELS=... WAV=..." && exit 1)
 	set -o pipefail; SHERPA_JNI_DIR=$(abspath $(SHERPA_LINUX_JNI)) LD_LIBRARY_PATH=$(abspath $(SHERPA_LINUX_JNI)) \
 	PHONE_WHISPER_MODELS_DIR=$(abspath $(MODELS)) PHONE_WHISPER_TEST_WAV=$(abspath $(WAV)) \
-	./gradlew testDebugUnitTest --tests '*LocalTranscriberIntegrationTest*' --rerun -i | grep -E '^ *(Parakeet|Whisper|Moonshine|Trimmed)|BUILD|FAIL'
+	$(if $(WAV_DE),PHONE_WHISPER_TEST_WAV_DE=$(abspath $(WAV_DE))) \
+	./gradlew testDebugUnitTest --tests '*LocalTranscriberIntegrationTest*' --rerun -i | grep -E '^ *(Parakeet|Whisper|Moonshine|Trimmed)|BUILD|FAIL|Assertion'
 
 $(SHERPA_LINUX_JNI):
 	mkdir -p build

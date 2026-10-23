@@ -42,6 +42,7 @@ import androidx.core.content.ContextCompat
 import com.kafkasl.phonewhisper.Prefs.cancelOnScreenOff
 import com.kafkasl.phonewhisper.Prefs.haptics
 import com.kafkasl.phonewhisper.Prefs.idleReleaseMinutes
+import com.kafkasl.phonewhisper.Prefs.language
 import com.kafkasl.phonewhisper.Prefs.micSource
 import com.kafkasl.phonewhisper.Prefs.numThreads
 import com.kafkasl.phonewhisper.Prefs.overlayKeyboardOnly
@@ -148,6 +149,8 @@ class WhisperAccessibilityService : AccessibilityService() {
         when (key) {
             Prefs.OVERLAY_MODE -> handler.post { updateOverlayVisibility() }
             Prefs.IDLE_RELEASE_MINUTES -> handler.post { scheduleIdleRelease() }
+            // Whisper takes the language at load time.
+            Prefs.LANGUAGE -> if (prefs().getBoolean("use_local", true)) reloadModel()
         }
     }
 
@@ -236,7 +239,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         val available = LocalTranscriber.availableModels(this)
         val selected = prefs().getString("model_name", "").orEmpty()
         val name = selected.takeIf { it in available } ?: available.firstOrNull() ?: return null
-        return LocalTranscriber.create(File(LocalTranscriber.modelsDir(this), name), prefs().numThreads())
+        return LocalTranscriber.create(File(LocalTranscriber.modelsDir(this), name), prefs().numThreads(), prefs().language())
     }
 
     /** Free the local model after the configured idle time; it is loaded again when recording starts. */
@@ -662,7 +665,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
 
         val audio = if (trimmed) floatsToPcm(samples) else pcm
-        TranscriberClient.transcribe(WavWriter.encode(audio), target) { result ->
+        TranscriberClient.transcribe(WavWriter.encode(audio), target, prefs().language()) { result ->
             if (result.text != null && result.text.isNotBlank()) {
                 handleTranscriptionResult(result.text)
             } else if (result.error == null) {

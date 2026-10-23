@@ -144,3 +144,30 @@ class LevelTest {
         assertEquals(1f, LevelBarsView.levelOf(loud, loud.size), 0f)
     }
 }
+
+class LanguageTest {
+    @Test fun `cloud requests carry the language only when one is set`() {
+        val wav = ByteArray(4)
+        assertEquals("de", org.json.JSONObject(TranscriberClient.openRouterBody(wav, "m", "de")).getString("language"))
+        assertFalse(org.json.JSONObject(TranscriberClient.openRouterBody(wav, "m", "")).has("language"))
+    }
+
+    @Test fun `whisper transcribes in the chosen or detected language instead of translating`() {
+        val dir = Files.createTempDirectory("model").toFile()
+        try {
+            listOf("small-encoder.int8.onnx", "small-decoder.int8.onnx", "small-tokens.txt").forEach { File(dir, it).writeText("x") }
+            val auto = LocalTranscriber.detectModelConfig(dir, 2)!!.modelConfig.whisper
+            assertEquals("", auto.language)
+            assertEquals("transcribe", auto.task)
+            assertEquals("de", LocalTranscriber.detectModelConfig(dir, 2, "de")!!.modelConfig.whisper.language)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun `the English-only Whisper is only kept for existing installs`() {
+        val legacy = MODEL_CATALOG.filter { it.legacy }
+        assertEquals(listOf("sherpa-onnx-whisper-base.en"), legacy.map { it.archive })
+        assertTrue(MODEL_CATALOG.filter { !it.legacy && it.name.startsWith("Whisper") }.all { it.languages == "99 languages" })
+    }
+}

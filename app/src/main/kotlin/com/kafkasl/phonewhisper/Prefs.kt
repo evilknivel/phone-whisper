@@ -31,6 +31,18 @@ object Prefs {
     const val MIC_VOICE_RECOGNITION = "voice_recognition"
     const val MIC_RAW = "mic"
 
+    /** ISO 639-1 code of the spoken language, or "" to let the model detect it. */
+    const val LANGUAGE = "language"
+    val LANGUAGES = listOf(
+        "" to "Detect automatically",
+        "de" to "German", "en" to "English", "fr" to "French", "es" to "Spanish", "it" to "Italian",
+        "nl" to "Dutch", "pl" to "Polish", "pt" to "Portuguese", "cs" to "Czech", "sv" to "Swedish",
+        "da" to "Danish", "fi" to "Finnish", "hu" to "Hungarian", "ro" to "Romanian", "el" to "Greek",
+        "uk" to "Ukrainian", "ru" to "Russian", "tr" to "Turkish", "ar" to "Arabic", "hi" to "Hindi",
+        "zh" to "Chinese", "ja" to "Japanese", "ko" to "Korean",
+    )
+
+    fun SharedPreferences.language() = getString(LANGUAGE, "").orEmpty()
     fun SharedPreferences.overlayKeyboardOnly() = getString(OVERLAY_MODE, OVERLAY_KEYBOARD) == OVERLAY_KEYBOARD
     fun SharedPreferences.cancelOnScreenOff() = getBoolean(CANCEL_ON_SCREEN_OFF, true)
     fun SharedPreferences.haptics() = getBoolean(HAPTICS, true)

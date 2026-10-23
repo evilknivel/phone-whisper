@@ -17,6 +17,7 @@ data class ModelFile(val name: String, val size: Long, val sha256: String)
  * `<archive>.tar.bz2` from the sherpa-onnx release; models with [files] download each file from
  * [baseUrl] (pinned to a commit) and verify its SHA-256, which is faster than decoding bz2 on the
  * phone. [sizeMb] is the space the installed model takes; [languages] is shown in the list.
+ * Order is the order in the list: English-only models, then multilingual ones.
  */
 data class Model(
     val name: String,
@@ -25,6 +26,8 @@ data class Model(
     val quality: String,
     val languages: String,
     val recommended: Boolean = false,
+    /** No longer offered for download; shown only while installed, so it can be used or deleted. */
+    val legacy: Boolean = false,
     val baseUrl: String? = null,
     val files: List<ModelFile> = emptyList(),
 )
@@ -34,13 +37,31 @@ private const val HF = "https://huggingface.co"
 val MODEL_CATALOG = listOf(
     Model("Parakeet 110M", "sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8",
         132, "★★★ Best value", "English only", recommended = true),
-    Model("Whisper Base", "sherpa-onnx-whisper-base.en",
-        161, "★★★", "English only",
-        baseUrl = "$HF/csukuangfj/sherpa-onnx-whisper-base.en/resolve/59eea950fc76df2453efb57e6c0fd334548e8ffe",
+    Model("Moonshine Tiny", "sherpa-onnx-moonshine-tiny-en-int8",
+        124, "★★☆ Fast", "English only",
+        baseUrl = "$HF/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/bf2b762c076d8ea61e2af0b3851c9564fb77552e",
         files = listOf(
-            ModelFile("base.en-encoder.int8.onnx", 29_120_534, "ef6b936f4c9b1d90a3b68634b60c4ed8576b26172b33c2535ec0e933c9edb823"),
-            ModelFile("base.en-decoder.int8.onnx", 130_669_978, "f7162ad6db2dbef16cfaeaa7f945b9d7dd9c1b8d472f6aca82f2273d185e4d41"),
-            ModelFile("base.en-tokens.txt", 835_554, "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930"),
+            ModelFile("preprocess.onnx", 6_800_738, "f33addce61a143460fe753b5ee5b7db255e5140b5b779c065b94f6c83ff0bf4e"),
+            ModelFile("encode.int8.onnx", 18_249_187, "8774dfba578de027ec6595c2c654a0836434489bc963a0db124a7f181f571acb"),
+            ModelFile("uncached_decode.int8.onnx", 53_216_096, "216737000dd5881a17aa043f6bbd286add33e4c3b0ae257153e2ec15438bdc41"),
+            ModelFile("cached_decode.int8.onnx", 45_264_830, "2aff28bba6a03d8dcf5c9feac45462629bae37317442299f28115ad09da773f6"),
+            ModelFile("tokens.txt", 436_688, "1165c2aeb9f72f457a83be2d459a09054f27490acd9b41bd43794dfd25e296ea"),
+        )),
+    Model("Whisper Base", "sherpa-onnx-whisper-base",
+        161, "★★★ Many languages", "99 languages",
+        baseUrl = "$HF/csukuangfj/sherpa-onnx-whisper-base/resolve/bb53ee204431c90d314c1cc08d28d23e5b7927cc",
+        files = listOf(
+            ModelFile("base-encoder.int8.onnx", 29_120_534, "0b8fb1304b6109976038efff5ace81720e00386f3ff6b54ee8c75291ca0a1e11"),
+            ModelFile("base-decoder.int8.onnx", 130_672_026, "9759d217388a01b3a4c7c15533201067b48ae819c4daafc8624e64b9409dc02d"),
+            ModelFile("base-tokens.txt", 816_730, "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"),
+        )),
+    Model("Whisper Small", "sherpa-onnx-whisper-small",
+        375, "★★★★ Many languages", "99 languages",
+        baseUrl = "$HF/csukuangfj/sherpa-onnx-whisper-small/resolve/8f3c18b358db4d1f2fc1eae49d75cd20989e4309",
+        files = listOf(
+            ModelFile("small-encoder.int8.onnx", 112_442_483, "4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9"),
+            ModelFile("small-decoder.int8.onnx", 262_226_114, "acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee"),
+            ModelFile("small-tokens.txt", 816_730, "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"),
         )),
     Model("Parakeet 0.6B", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
         671, "★★★★ Best quality", "25 European languages incl. German",
@@ -60,15 +81,14 @@ val MODEL_CATALOG = listOf(
             ModelFile("joiner.int8.onnx", 5_281_747, "20ae4350c2484ba607d94f08ef25ae3ead762d8aaf70753758ffcc504e255ebb"),
             ModelFile("tokens.txt", 93_939, "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"),
         )),
-    Model("Moonshine Tiny", "sherpa-onnx-moonshine-tiny-en-int8",
-        124, "★★☆ Fast", "English only",
-        baseUrl = "$HF/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/bf2b762c076d8ea61e2af0b3851c9564fb77552e",
+    // Replaced by the multilingual Whisper Base; listed only while still installed.
+    Model("Whisper Base (English, older)", "sherpa-onnx-whisper-base.en",
+        161, "★★★", "English only", legacy = true,
+        baseUrl = "$HF/csukuangfj/sherpa-onnx-whisper-base.en/resolve/59eea950fc76df2453efb57e6c0fd334548e8ffe",
         files = listOf(
-            ModelFile("preprocess.onnx", 6_800_738, "f33addce61a143460fe753b5ee5b7db255e5140b5b779c065b94f6c83ff0bf4e"),
-            ModelFile("encode.int8.onnx", 18_249_187, "8774dfba578de027ec6595c2c654a0836434489bc963a0db124a7f181f571acb"),
-            ModelFile("uncached_decode.int8.onnx", 53_216_096, "216737000dd5881a17aa043f6bbd286add33e4c3b0ae257153e2ec15438bdc41"),
-            ModelFile("cached_decode.int8.onnx", 45_264_830, "2aff28bba6a03d8dcf5c9feac45462629bae37317442299f28115ad09da773f6"),
-            ModelFile("tokens.txt", 436_688, "1165c2aeb9f72f457a83be2d459a09054f27490acd9b41bd43794dfd25e296ea"),
+            ModelFile("base.en-encoder.int8.onnx", 29_120_534, "ef6b936f4c9b1d90a3b68634b60c4ed8576b26172b33c2535ec0e933c9edb823"),
+            ModelFile("base.en-decoder.int8.onnx", 130_669_978, "f7162ad6db2dbef16cfaeaa7f945b9d7dd9c1b8d472f6aca82f2273d185e4d41"),
+            ModelFile("base.en-tokens.txt", 835_554, "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930"),
         )),
 )
 

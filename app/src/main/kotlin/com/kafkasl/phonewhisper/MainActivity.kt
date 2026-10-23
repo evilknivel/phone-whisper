@@ -15,6 +15,7 @@ import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.radiobutton.MaterialRadioButton
+import com.kafkasl.phonewhisper.Prefs.language
 
 /**
  * The main settings screen: status, setup, transcription (cloud or local models) and cleanup.
@@ -37,7 +38,8 @@ class MainActivity : SettingsScreen() {
         val progress: LinearProgressIndicator,
         val subtitle: TextView,
         val dlBtn: MaterialButton,
-        val deleteBtn: MaterialButton
+        val deleteBtn: MaterialButton,
+        val row: View,
     )
 
     private data class PromptRowViews(
@@ -84,6 +86,17 @@ class MainActivity : SettingsScreen() {
                 // Loads the local model, or frees it in cloud mode.
                 WhisperAccessibilityService.instance?.reloadModel()
             })
+            addView(choiceRow(
+                "Language",
+                Prefs.LANGUAGES,
+                current = { prefs().language() },
+                // The service reloads a local Whisper model when this pref changes.
+                onPick = { prefs().edit().putString(Prefs.LANGUAGE, it).apply() },
+            ))
+            addView(note(
+                "Used by Whisper and cloud transcription. Set it if short dictations come out in the " +
+                    "wrong language. Parakeet always detects the language itself."
+            ))
 
             cloudContainer = vertical(0).apply {
                 addView(providerRow(CloudTask.TRANSCRIPTION, "Transcription provider"))
@@ -93,7 +106,7 @@ class MainActivity : SettingsScreen() {
 
             modelContainer = vertical(0).apply {
                 for (m in MODEL_CATALOG) addView(buildModelRow(m))
-                addView(note("Only Parakeet 0.6B and Ultra understand languages other than English."))
+                addView(note("Parakeet 110M and Moonshine understand English only."))
             }
             addView(modelContainer)
 
@@ -219,7 +232,7 @@ class MainActivity : SettingsScreen() {
         textContainer.addView(progress)
 
         modelRows[model.archive] = ModelRowViews(
-            radio, progress, textContainer.findViewWithTag("subtitle"), dlBtn, deleteBtn
+            radio, progress, textContainer.findViewWithTag("subtitle"), dlBtn, deleteBtn, row
         )
         onRefresh { refreshCard(model) }
 
@@ -233,6 +246,7 @@ class MainActivity : SettingsScreen() {
             selectModel(model.archive)
             return
         }
+        if (model.legacy) return
         // The download shows its progress in a notification (Android 13+ asks first).
         if (Build.VERSION.SDK_INT >= 33 && !hasPerm(Manifest.permission.POST_NOTIFICATIONS)) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2)
@@ -287,6 +301,7 @@ class MainActivity : SettingsScreen() {
         val installed = ModelDownloader.isInstalled(this, model)
         val download = ModelDownloader.state(model)
 
+        views.row.visibility = if (model.legacy && !installed) View.GONE else View.VISIBLE
         views.radio.isChecked = active
         views.radio.visibility = if (installed) View.VISIBLE else View.GONE
         views.deleteBtn.visibility = if (installed && download == null) View.VISIBLE else View.GONE

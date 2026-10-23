@@ -26,12 +26,13 @@ object TranscriberClient {
     fun parseResponse(code: Int, body: String): Result =
         if (code in 200..299) parseResponse(body) else Result(null, apiErrorMessage(code, body), code)
 
-    fun transcribe(wavData: ByteArray, target: CloudTarget, callback: (Result) -> Unit) {
+    /** [language] is an ISO 639-1 code; "" lets the provider detect it. */
+    fun transcribe(wavData: ByteArray, target: CloudTarget, language: String = "", callback: (Result) -> Unit) {
         if (target.baseUrl.isBlank()) { callback(Result(null, "Set the custom API address in Phone Whisper")); return }
         val request = try {
             when (target.provider) {
-                CloudProvider.OPENAI, CloudProvider.CUSTOM -> openAiRequest(wavData, target)
-                CloudProvider.OPENROUTER -> openRouterRequest(wavData, target)
+                CloudProvider.OPENAI, CloudProvider.CUSTOM -> openAiRequest(wavData, target, language)
+                CloudProvider.OPENROUTER -> openRouterRequest(wavData, target, language)
             }
         } catch (e: IllegalArgumentException) {
             callback(Result(null, "Invalid API address: ${e.message}")); return
@@ -46,11 +47,12 @@ object TranscriberClient {
         })
     }
 
-    private fun openAiRequest(wavData: ByteArray, target: CloudTarget): Request {
+    private fun openAiRequest(wavData: ByteArray, target: CloudTarget, language: String): Request {
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("model", target.model)
             .addFormDataPart("response_format", "json")
+            .apply { if (language.isNotEmpty()) addFormDataPart("language", language) }
             .addFormDataPart("file", "audio.wav", wavData.toRequestBody("audio/wav".toMediaType()))
             .build()
 
@@ -62,15 +64,16 @@ object TranscriberClient {
     }
 
     /** OpenRouter's STT endpoint also takes multipart now, but JSON with base64 audio is its documented main format. */
-    private fun openRouterRequest(wavData: ByteArray, target: CloudTarget): Request =
+    private fun openRouterRequest(wavData: ByteArray, target: CloudTarget, language: String): Request =
         Request.Builder()
             .url("${target.baseUrl}/audio/transcriptions")
             .auth(target)
-            .post(openRouterBody(wavData, target.model).toRequestBody("application/json".toMediaType()))
+            .post(openRouterBody(wavData, target.model, language).toRequestBody("application/json".toMediaType()))
             .build()
 
-    fun openRouterBody(wavData: ByteArray, model: String): String = JSONObject().apply {
+    fun openRouterBody(wavData: ByteArray, model: String, language: String = ""): String = JSONObject().apply {
         put("model", model)
+        if (language.isNotEmpty()) put("language", language)
         put("input_audio", JSONObject().apply {
             put("data", Base64.getEncoder().encodeToString(wavData))
             put("format", "wav")
