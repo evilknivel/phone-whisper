@@ -28,7 +28,7 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 - **Tap**: dictate (red while recording). **Hold**: dictate with AI cleanup (purple while recording).
 - Level bars while recording, a spinner while transcribing, and a short vibration on start and stop.
 - If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, or tap the **✕** next to it to discard it.
-- Your thumb covers the button, so the app also tells you without looking: a **ring larger than the button** fills while you hold it, and **different vibrations** mark a normal start (click), a start with AI cleanup (double pulse) and discarding (long buzz). Optionally the **screen edges glow** red or purple while recording (*Button & insertion → Glowing screen edge*).
+- Your thumb covers the button, so the app also tells you without looking: a **ring larger than the button** grows around it while you hold it (purple for AI cleanup, orange for discarding; it triggers after 0.8 s), and **different vibrations** mark a normal start (click), a start with AI cleanup (double pulse) and discarding (long buzz). Optionally the **screen edges glow** red or purple while recording (*Button & insertion → Glowing screen edge*).
 - Turning the screen off while recording cancels the recording.
 
 **Inserting text**
@@ -207,4 +207,4 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 9. **Languages**: language setting for Whisper and the cloud, multilingual Whisper Base and Whisper Small (Whisper had translated German into English with sherpa-onnx's default), complete endings for Whisper Base
 10. **Documentation and credits**: complete README, website and privacy policy; credits for the original author and the pull request authors
 11. **Setup assistant and hold-to-clean-up**: a first-run assistant for permissions, mode, model or provider, cleanup and the accessibility service (with the disclosure Google Play asks for); holding the button dictates with AI cleanup
-12. **Feedback under the thumb**: a hold ring larger than the button, distinct vibrations, a ✕ next to the orange button to discard, and an optional glowing screen edge while recording
+12. **Feedback under the thumb**: a hold ring larger than the button, distinct vibrations, a ✕ next to the orange button to discard, an optional glowing screen edge while recording, and messages shown above the thumb

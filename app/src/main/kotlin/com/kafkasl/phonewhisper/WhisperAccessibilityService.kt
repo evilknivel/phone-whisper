@@ -37,7 +37,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.kafkasl.phonewhisper.Prefs.cancelOnScreenOff
 import com.kafkasl.phonewhisper.Prefs.cleanupMode
@@ -74,11 +73,16 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val TAP_THRESHOLD_DP = 10
         private const val RING_DP = 56
         private const val BARS_DP = 22
-        private const val FEEDBACK_OFFSET_DP = 64
+        private const val FEEDBACK_GAP_DP = 8
         private const val HOLD_RING_DP = 128
         private const val DISCARD_DP = 36
         /** Taps are shorter than this, so the hold ring doesn't flash on every tap. */
         private const val HOLD_RING_DELAY_MS = 150L
+        /**
+         * How long the button must be held. Longer than Android's long-press timeout (~0.4 s), so
+         * the ring visibly fills before the hold triggers.
+         */
+        private const val HOLD_MS = 800L
         private const val VISIBILITY_DEBOUNCE_MS = 100L
         private const val KEYBOARD_WATCHDOG_MS = 1000L
         private const val LEVEL_UPDATE_MS = 50L
@@ -320,7 +324,7 @@ class WhisperAccessibilityService : AccessibilityService() {
                     startX = params.x; startY = params.y
                     touchX = ev.rawX; touchY = ev.rawY
                     longPressed = false
-                    handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                    handler.postDelayed(longPress, HOLD_MS)
                     startHoldRing()
                     true
                 }
@@ -401,7 +405,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 
         val ringSize = (HOLD_RING_DP * dp).toInt()
-        val ring = HoldRingView(this, COLOR_RECORDING_CLEANUP or 0xFF000000.toInt()).apply { visibility = View.GONE }
+        val ring = HoldRingView(this).apply { visibility = View.GONE }
         val ringParams = WindowManager.LayoutParams(
             ringSize, ringSize, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, untouchable, PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.TOP or Gravity.START }
@@ -470,13 +474,18 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Fill the ring while the button is held, if holding means something here: a dictation with
-     * AI cleanup. It starts after a short delay so taps don't flash it.
+     * Grow the ring while the button is held, in the color of what the hold will do: purple for a
+     * dictation with AI cleanup, orange for discarding a failed recording. Nothing when holding
+     * does nothing special. It starts after a short delay so taps don't flash it.
      */
     private fun startHoldRing() {
         val ring = holdRing ?: return
-        if (state != State.IDLE || prefs().cleanupMode() == Prefs.CLEANUP_NEVER) return
-        val total = ViewConfiguration.getLongPressTimeout().toLong()
+        ring.color = when {
+            state == State.IDLE && prefs().cleanupMode() != Prefs.CLEANUP_NEVER -> COLOR_RECORDING_CLEANUP
+            state == State.RETRY -> COLOR_RETRY
+            else -> return
+        }
+        val total = HOLD_MS
         holdRingAnimator?.cancel()
         holdRingAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
             startDelay = HOLD_RING_DELAY_MS
@@ -601,14 +610,29 @@ class WhisperAccessibilityService : AccessibilityService() {
         setColor(color)
     }
 
+    /**
+     * Messages go above the hold ring, clear of the thumb that holds the button (below it if the
+     * button sits at the top), and run from the button's screen edge inwards.
+     */
     private fun positionFeedback(
         feedbackParams: WindowManager.LayoutParams,
         bubbleParams: WindowManager.LayoutParams
     ) {
+        val view = feedbackView ?: return
+        val (screenW, _) = screenSize
         val margin = (MARGIN_DP * dp).toInt()
-        val offset = (FEEDBACK_OFFSET_DP * dp).toInt()
-        feedbackParams.x = maxOf(margin, bubbleParams.x - offset)
-        feedbackParams.y = maxOf(margin, bubbleParams.y - margin)
+        view.maxWidth = (screenW * 0.8f).toInt()
+        view.measure(
+            View.MeasureSpec.makeMeasureSpec(screenW - 2 * margin, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val buttonCenterY = bubbleParams.y + (RING_DP * dp).toInt() / 2
+        val ringRadius = (HOLD_RING_DP * dp).toInt() / 2
+        val gap = (FEEDBACK_GAP_DP * dp).toInt()
+        val above = buttonCenterY - ringRadius - gap - view.measuredHeight
+        feedbackParams.x = if (onRightEdge) screenW - margin - view.measuredWidth else margin
+        // Near the top of the screen there is no room above: show it below the ring instead.
+        feedbackParams.y = if (above >= margin) above else buttonCenterY + ringRadius + gap
     }
 
     private fun showFeedback(text: String, durationMs: Long = 2000) {
@@ -697,13 +721,13 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun startRecording(cleanup: Boolean, held: Boolean = false) {
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            toast("Grant audio permission in Phone Whisper app"); return
+            showFeedback("Grant audio permission in the Phone Whisper app", 3000); return
         }
 
         val bufSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         )
-        if (bufSize <= 0) { toast("Microphone not available"); return }
+        if (bufSize <= 0) { showFeedback("Microphone not available", 3000); return }
 
         // VOICE_RECOGNITION is the source meant for speech recognition (no voice-call processing).
         val source = if (prefs().micSource() == Prefs.MIC_RAW) MediaRecorder.AudioSource.MIC
@@ -712,8 +736,8 @@ class WhisperAccessibilityService : AccessibilityService() {
         // Creating or starting the recorder fails when another app (or a call) holds the microphone.
         val recorder = try {
             AudioRecord(source, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufSize)
-        } catch (_: SecurityException) { toast("Audio permission denied"); return }
-        catch (e: IllegalArgumentException) { toast("Microphone not available"); return }
+        } catch (_: SecurityException) { showFeedback("Audio permission denied", 3000); return }
+        catch (e: IllegalArgumentException) { showFeedback("Microphone not available", 3000); return }
 
         val started = recorder.state == AudioRecord.STATE_INITIALIZED && try {
             recorder.startRecording()
@@ -721,7 +745,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         } catch (_: IllegalStateException) { false }
         if (!started) {
             recorder.release()
-            toast("Microphone is busy")
+            showFeedback("Microphone is busy", 3000)
             return
         }
 
@@ -1086,5 +1110,4 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
 
     private fun prefs() = Prefs.of(this)
-    private fun toast(msg: String) { handler.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
 }
