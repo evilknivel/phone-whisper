@@ -15,6 +15,7 @@ import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.radiobutton.MaterialRadioButton
+import com.kafkasl.phonewhisper.Prefs.cleanupMode
 import com.kafkasl.phonewhisper.Prefs.language
 
 /**
@@ -71,7 +72,7 @@ class MainActivity : SettingsScreen() {
             addView(audioRow)
 
             val accRow = settingsRow("Accessibility service", "Checking...") {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                AccessibilityDisclosure.open(this@MainActivity)
             }
             accRowSub = accRow.subtitle()
             addView(accRow)
@@ -111,10 +112,16 @@ class MainActivity : SettingsScreen() {
             addView(modelContainer)
 
             // --- Cleanup ---
-            addView(sectionHeader("Cleanup"))
-            addView(switchRow(
-                "Clean up transcript", "Uses a language model to fix grammar and punctuation",
-                "use_post_processing", false
+            addView(sectionHeader("AI cleanup"))
+            addView(choiceRow(
+                "Clean up with AI",
+                Prefs.CLEANUP_CHOICES,
+                current = { prefs().cleanupMode() },
+                onPick = { prefs().edit().putString(Prefs.CLEANUP_MODE, it).apply() },
+            ))
+            addView(note(
+                "A language model fixes punctuation, grammar and recognition errors. " +
+                    "Tap the button for a plain dictation; hold it to dictate with cleanup (the button turns purple)."
             ))
             promptContainer = vertical(0).apply {
                 addView(providerRow(CloudTask.POST_PROCESSING, "Cleanup provider"))
@@ -132,6 +139,7 @@ class MainActivity : SettingsScreen() {
 
             // --- More ---
             addView(sectionHeader("More settings"))
+            addView(navRow("Setup assistant", "Walk through the setup again", SetupWizardActivity::class.java))
             addView(navRow("API keys", "OpenAI, OpenRouter and custom server", ApiKeysActivity::class.java))
             addView(navRow("Button & insertion", "When the button shows, vibration, clipboard", ButtonSettingsActivity::class.java))
             addView(navRow("Advanced", "CPU threads, memory, silence trimming, microphone", AdvancedSettingsActivity::class.java))
@@ -141,6 +149,7 @@ class MainActivity : SettingsScreen() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
         }
         Thread { ModelDownloader.pruneInstalled(applicationContext) }.start()
+        startSetupOnFirstRun()
     }
 
     override fun onResume() {
@@ -158,6 +167,21 @@ class MainActivity : SettingsScreen() {
 
     override fun onRequestPermissionsResult(c: Int, p: Array<String>, r: IntArray) {
         super.onRequestPermissionsResult(c, p, r); refresh()
+    }
+
+    /**
+     * New installs start with the setup assistant. Installs that are already set up (from versions
+     * before the assistant) are marked done instead of being walked through it again.
+     */
+    private fun startSetupOnFirstRun() {
+        if (prefs().getBoolean(Prefs.SETUP_DONE, false)) return
+        // The service may connect a moment after this screen starts, so "switched on" is enough.
+        val configured = accessibilityState() != AccessibilityState.OFF && (
+            if (prefs().getBoolean("use_local", true)) LocalTranscriber.availableModels(this).isNotEmpty()
+            else prefs().transcriptionTarget().isConfigured
+        )
+        if (configured) prefs().edit().putBoolean(Prefs.SETUP_DONE, true).apply()
+        else startActivity(Intent(this, SetupWizardActivity::class.java))
     }
 
     /** Stored prompts that are old versions of a preset become the current preset. */
@@ -370,7 +394,10 @@ class MainActivity : SettingsScreen() {
         val audio = hasPerm(Manifest.permission.RECORD_AUDIO)
         val acc = accessibilityState()
         val useLocal = prefs().getBoolean("use_local", true)
-        val usePostProcessing = prefs().getBoolean("use_post_processing", false)
+        val cleanupMode = prefs().cleanupMode()
+        // Only "always" makes cleanup part of every dictation; in "hold" mode a missing key just
+        // means held dictations stay raw.
+        val usePostProcessing = cleanupMode == Prefs.CLEANUP_ALWAYS
         val transTarget = prefs().transcriptionTarget()
         val ppTarget = prefs().postProcessingTarget()
         val installedModels = LocalTranscriber.availableModels(this)
@@ -385,7 +412,7 @@ class MainActivity : SettingsScreen() {
 
         modelContainer.visibility = if (useLocal) View.VISIBLE else View.GONE
         cloudContainer.visibility = if (useLocal) View.GONE else View.VISIBLE
-        promptContainer.visibility = if (usePostProcessing) View.VISIBLE else View.GONE
+        promptContainer.visibility = if (cleanupMode != Prefs.CLEANUP_NEVER) View.VISIBLE else View.GONE
 
         val cur = prefs().getString("model_name", "") ?: ""
         if (cur !in installedModels) {

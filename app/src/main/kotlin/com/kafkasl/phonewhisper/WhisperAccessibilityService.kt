@@ -40,6 +40,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.kafkasl.phonewhisper.Prefs.cancelOnScreenOff
+import com.kafkasl.phonewhisper.Prefs.cleanupMode
 import com.kafkasl.phonewhisper.Prefs.haptics
 import com.kafkasl.phonewhisper.Prefs.idleReleaseMinutes
 import com.kafkasl.phonewhisper.Prefs.language
@@ -79,6 +80,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         private const val COLOR_IDLE = 0xDD1C1C1E.toInt()
         private const val COLOR_RECORDING = 0xDDEF4444.toInt()
+        private const val COLOR_RECORDING_CLEANUP = 0xDD8B5CF6.toInt()
         private const val COLOR_BUSY = 0xDD6B6B6B.toInt()
         private const val COLOR_RETRY = 0xDDF59E0B.toInt()
         private const val COLOR_FEEDBACK_BG = 0xEE1C1C1E.toInt()
@@ -112,6 +114,12 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     /** Audio of the last recording that could not be transcribed, kept for a retry. */
     @Volatile private var failedPcm: ByteArray? = null
+
+    /**
+     * Whether the current dictation (and its retry) is cleaned up by the chat model: always in
+     * "always" mode, and in "hold" mode when the recording was started by holding the button.
+     */
+    @Volatile private var cleanupThisDictation = false
 
     // Local transcription engine. Loading, releasing and local transcription all run on
     // [modelExecutor], one at a time, so a model is never released while it transcribes.
@@ -291,15 +299,24 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         var startX = 0; var startY = 0
         var touchX = 0f; var touchY = 0f
+        // The long press fires while the finger is still down, so holding gives immediate feedback.
+        var longPressed = false
+        val longPress = Runnable { longPressed = true; onLongPress() }
 
         overlay.setOnTouchListener { v, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
                     startX = params.x; startY = params.y
                     touchX = ev.rawX; touchY = ev.rawY
+                    longPressed = false
+                    handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    if (abs(ev.rawX - touchX) + abs(ev.rawY - touchY) >= TAP_THRESHOLD_DP * dp) {
+                        handler.removeCallbacks(longPress)
+                    }
+                    if (longPressed) return@setOnTouchListener true
                     val (_, screenH) = screenSize
                     params.x = startX + (ev.rawX - touchX).toInt()
                     params.y = (startY + (ev.rawY - touchY).toInt()).coerceIn(0, maxOf(0, screenH - ringSize))
@@ -307,11 +324,13 @@ class WhisperAccessibilityService : AccessibilityService() {
                     updateFeedbackPosition()
                     true
                 }
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(longPress)
                     val moved = abs(ev.rawX - touchX) + abs(ev.rawY - touchY)
-                    if (moved < TAP_THRESHOLD_DP * dp) {
-                        val held = ev.eventTime - ev.downTime
-                        if (held >= ViewConfiguration.getLongPressTimeout()) onLongPress() else onTap()
+                    if (longPressed || ev.action == MotionEvent.ACTION_CANCEL) {
+                        // Handled when the long press fired.
+                    } else if (moved < TAP_THRESHOLD_DP * dp) {
+                        onTap()
                     } else {
                         val (screenW, screenH) = screenSize
                         onRightEdge = params.x + ringSize / 2 > screenW / 2
@@ -477,7 +496,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         val img = button ?: return
         val (color, icon) = when (state) {
             State.IDLE -> COLOR_IDLE to R.drawable.ic_mic
-            State.RECORDING -> COLOR_RECORDING to null
+            State.RECORDING -> (if (cleanupThisDictation) COLOR_RECORDING_CLEANUP else COLOR_RECORDING) to null
             State.TRANSCRIBING -> COLOR_BUSY to R.drawable.ic_mic
             State.RETRY -> COLOR_RETRY to R.drawable.ic_retry
         }
@@ -493,15 +512,21 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun onTap() {
         when (state) {
-            State.IDLE -> startRecording()
+            State.IDLE -> startRecording(cleanup = prefs().cleanupMode() == Prefs.CLEANUP_ALWAYS)
             State.RECORDING -> stopAndTranscribe()
             State.TRANSCRIBING -> {}
             State.RETRY -> retry()
         }
     }
 
+    /** Holding the button starts a dictation with AI cleanup (unless cleanup is set to "never"). */
     private fun onLongPress() {
         when (state) {
+            State.IDLE -> {
+                val cleanup = prefs().cleanupMode() != Prefs.CLEANUP_NEVER
+                startRecording(cleanup)
+                if (cleanup) showFeedback("Recording with AI cleanup", 1500)
+            }
             State.RETRY -> {
                 failedPcm = null
                 enter(State.IDLE)
@@ -511,7 +536,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun startRecording() {
+    private fun startRecording(cleanup: Boolean) {
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             toast("Grant audio permission in Phone Whisper app"); return
@@ -546,6 +571,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         audioRecord = recorder
         pcmStream = stream
         failedPcm = null
+        cleanupThisDictation = cleanup
         enter(State.RECORDING)
         vibrate()
 
@@ -726,16 +752,15 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun handleTranscriptionResult(text: String?) {
         if (text.isNullOrBlank()) { finish("No speech detected"); return }
 
-        val usePostProcessing = prefs().getBoolean("use_post_processing", false)
         val target = prefs().postProcessingTarget()
 
-        if (!usePostProcessing) {
+        if (!cleanupThisDictation) {
             handler.post { injectText(text); finish() }
             return
         }
         if (!target.isConfigured) {
             handler.post {
-                injectText(text, feedback = "Cleanup is not set up. Raw text used.")
+                injectText(text, feedback = "AI cleanup is not set up (provider or API key). Raw text used.")
                 finish()
             }
             return

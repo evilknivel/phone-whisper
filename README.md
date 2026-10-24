@@ -18,12 +18,14 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 - **Languages**: Parakeet 0.6B and Ultra understand 25 European languages including German, Whisper 99 languages. A **Language** setting (default: detect automatically) fixes the language for Whisper and the cloud.
 - **Silence trimming** with Silero VAD before transcribing: faster, cheaper, and no invented text for silent stretches. If no speech is detected, nothing is sent; tapping retry sends the untrimmed recording.
 
-**Cleanup (optional)**
+**AI cleanup (optional)**
 - A chat model (OpenAI, OpenRouter or your own server) fixes punctuation, grammar and obvious recognition errors. It keeps your language and never translates.
+- **Hold the button** to dictate with cleanup, tap it for a plain dictation (default). Cleanup can also be set to *always* or *never*.
 - Presets: *Simple cleanup* (default), *Dev cleanup* (turns "command mode …" into shell commands), or your own prompt.
 
 **The button**
 - Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge and stays there across rotation.
+- **Tap**: dictate (red while recording). **Hold**: dictate with AI cleanup (purple while recording).
 - Level bars while recording, a spinner while transcribing, and a short vibration on start and stop.
 - If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, hold to discard it.
 - Turning the screen off while recording cancels the recording.
@@ -59,18 +61,21 @@ The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. With a phone 
 
 ## Setup
 
-1. Open **Phone Whisper**
-2. Grant the **audio recording** permission
-3. Enable the **Accessibility Service**
-4. Choose your transcription mode:
-   - **Local**: download a model in the list and tap it to select it. For German, use Parakeet 0.6B or Ultra.
-   - **Cloud**: switch on **Use cloud transcription**, pick a provider and model, and set its API key under **More settings → API keys**.
+On first launch a **setup assistant** explains the app and walks you through:
+
+1. the **microphone** permission
+2. **offline or online** transcription
+3. a **model** (offline; it suggests one for your phone's language and downloads it) or a **cloud service and API key** (online)
+4. **AI cleanup**: only when holding the button, always, or never, and the service and key for it
+5. the **Accessibility Service**: what it accesses and why, your agreement, and a shortcut to the system settings (plus help for "restricted settings")
+
+You can skip it and set everything up yourself, or run it again under **More settings → Setup assistant**.
 
 The **Status** line at the top shows what is still missing, for example "Setup required: accessibility service". When it says "Ready", open any app with a text field and tap the button.
 
 ## Settings
 
-The main screen holds status, setup, transcription (mode, language, models or cloud provider) and cleanup. Everything else is under **More settings**:
+The main screen holds status, setup, transcription (mode, language, models or cloud provider) and AI cleanup (mode, service, model, prompt). Everything else is under **More settings**, together with the setup assistant:
 
 | Page | Settings |
 |---|---|
@@ -199,3 +204,5 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 7. **Setup status** that names what is missing and notices a service that is on but not running
 8. **Features from the original repo's open pull requests**, reimplemented our own way (see [Credits](#credits)): button only with a keyboard, inserting without the clipboard, level bars, cancel on screen off, retry state with readable errors and a custom API address (ideas by Renat); background and direct Hugging Face downloads and the Whisper language finding (Maxime Borges); freeing the model when idle (ArtificialTruth). Plus silence trimming (VAD), language labels, pruning unused model files, a cleanup prompt that keeps the language, privacy fixes, vibration, microphone source, and settings split into sub-pages
 9. **Languages**: language setting for Whisper and the cloud, multilingual Whisper Base and Whisper Small (Whisper had translated German into English with sherpa-onnx's default), complete endings for Whisper Base
+10. **Documentation and credits**: complete README, website and privacy policy; credits for the original author and the pull request authors
+11. **Setup assistant and hold-to-clean-up**: a first-run assistant for permissions, mode, model or provider, cleanup and the accessibility service (with the disclosure Google Play asks for); holding the button dictates with AI cleanup

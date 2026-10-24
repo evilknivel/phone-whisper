@@ -171,3 +171,21 @@ class LanguageTest {
         assertTrue(MODEL_CATALOG.filter { !it.legacy && it.name.startsWith("Whisper") }.all { it.languages == "99 languages" })
     }
 }
+
+class CleanupModeTest {
+    @Test fun `old on-off switch maps to the new cleanup modes`() {
+        with(Prefs) {
+            assertEquals(Prefs.CLEANUP_ALWAYS, FakePrefs("use_post_processing" to true).cleanupMode())
+            assertEquals(Prefs.CLEANUP_HOLD, FakePrefs("use_post_processing" to false).cleanupMode())
+            assertEquals(Prefs.CLEANUP_HOLD, FakePrefs().cleanupMode())
+            assertEquals(Prefs.CLEANUP_NEVER, FakePrefs(Prefs.CLEANUP_MODE to "never", "use_post_processing" to true).cleanupMode())
+        }
+    }
+
+    @Test fun `hold mode without a key does not block setup, always mode does`() {
+        val noKey = FakePrefs().postProcessingTarget()
+        val target = FakePrefs("api_key" to "k").transcriptionTarget()
+        assertEquals(emptyList<String>(), missingSetup(true, AccessibilityState.RUNNING, false, false, target, false, noKey))
+        assertEquals(listOf("OpenAI API key for cleanup"), missingSetup(true, AccessibilityState.RUNNING, false, false, target, true, noKey))
+    }
+}

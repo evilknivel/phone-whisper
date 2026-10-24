@@ -42,6 +42,25 @@ object Prefs {
         "zh" to "Chinese", "ja" to "Japanese", "ko" to "Korean",
     )
 
+    /** When dictations are cleaned up by a chat model: "never", "always", or "hold" (only when the button is held). */
+    const val CLEANUP_MODE = "cleanup_mode"
+    const val CLEANUP_NEVER = "never"
+    const val CLEANUP_ALWAYS = "always"
+    const val CLEANUP_HOLD = "hold"
+
+    /** Older versions stored an on/off switch in `use_post_processing`: on becomes "always", off "hold". */
+    fun SharedPreferences.cleanupMode(): String = getString(CLEANUP_MODE, null)
+        ?: if (getBoolean("use_post_processing", false)) CLEANUP_ALWAYS else CLEANUP_HOLD
+
+    val CLEANUP_CHOICES = listOf(
+        CLEANUP_HOLD to "Only when I hold the button",
+        CLEANUP_ALWAYS to "Always",
+        CLEANUP_NEVER to "Never",
+    )
+
+    /** Set once the setup assistant was finished or skipped. */
+    const val SETUP_DONE = "setup_done"
+
     fun SharedPreferences.language() = getString(LANGUAGE, "").orEmpty()
     fun SharedPreferences.overlayKeyboardOnly() = getString(OVERLAY_MODE, OVERLAY_KEYBOARD) == OVERLAY_KEYBOARD
     fun SharedPreferences.cancelOnScreenOff() = getBoolean(CANCEL_ON_SCREEN_OFF, true)

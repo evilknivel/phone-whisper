@@ -26,7 +26,9 @@ abstract class SettingsScreen : AppCompatActivity() {
 
     private val refreshers = mutableListOf<() -> Unit>()
 
+    /** Build the screen. Calling it again (the setup assistant does, once per step) replaces it. */
     protected fun setScreen(title: String, content: LinearLayout.() -> Unit) {
+        refreshers.clear()
         val root = vertical(0, 0)
         root.addView(TextView(this).apply {
             text = title
