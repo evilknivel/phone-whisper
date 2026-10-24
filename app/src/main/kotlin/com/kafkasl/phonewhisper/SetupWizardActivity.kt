@@ -333,7 +333,7 @@ class SetupWizardActivity : SettingsScreen() {
             "Open any app and tap into a text field. The Phone Whisper button appears next to the keyboard.\n\n" +
                 "• Tap: dictate. Tap again to stop.\n" +
                 "• Hold: dictate with AI cleanup (the button turns purple).\n" +
-                "• Orange button: something went wrong. Tap to retry, hold to discard.\n\n" +
+                "• Orange button: something went wrong. Tap to retry, or tap the ✕ next to it to discard.\n\n" +
                 "The status at the top of the settings tells you if anything is still missing. " +
                 "You can run this assistant again from the settings."
         ))

@@ -18,6 +18,7 @@ object Prefs {
 
     const val CANCEL_ON_SCREEN_OFF = "cancel_on_screen_off"
     const val HAPTICS = "haptics"
+    const val EDGE_GLOW = "edge_glow"
     const val PRESERVE_CLIPBOARD = "preserve_clipboard"
     const val TRIM_SILENCE = "trim_silence"
     const val NUM_THREADS = "num_threads"
@@ -65,6 +66,7 @@ object Prefs {
     fun SharedPreferences.overlayKeyboardOnly() = getString(OVERLAY_MODE, OVERLAY_KEYBOARD) == OVERLAY_KEYBOARD
     fun SharedPreferences.cancelOnScreenOff() = getBoolean(CANCEL_ON_SCREEN_OFF, true)
     fun SharedPreferences.haptics() = getBoolean(HAPTICS, true)
+    fun SharedPreferences.edgeGlow() = getBoolean(EDGE_GLOW, false)
     fun SharedPreferences.preserveClipboard() = getBoolean(PRESERVE_CLIPBOARD, false)
     fun SharedPreferences.trimSilence() = getBoolean(TRIM_SILENCE, true)
     fun SharedPreferences.numThreads() = getInt(NUM_THREADS, LocalTranscriber.DEFAULT_THREADS)

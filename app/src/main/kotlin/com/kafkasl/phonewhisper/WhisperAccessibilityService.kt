@@ -41,6 +41,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.kafkasl.phonewhisper.Prefs.cancelOnScreenOff
 import com.kafkasl.phonewhisper.Prefs.cleanupMode
+import com.kafkasl.phonewhisper.Prefs.edgeGlow
 import com.kafkasl.phonewhisper.Prefs.haptics
 import com.kafkasl.phonewhisper.Prefs.idleReleaseMinutes
 import com.kafkasl.phonewhisper.Prefs.language
@@ -74,6 +75,10 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val RING_DP = 56
         private const val BARS_DP = 22
         private const val FEEDBACK_OFFSET_DP = 64
+        private const val HOLD_RING_DP = 128
+        private const val DISCARD_DP = 36
+        /** Taps are shorter than this, so the hold ring doesn't flash on every tap. */
+        private const val HOLD_RING_DELAY_MS = 150L
         private const val VISIBILITY_DEBOUNCE_MS = 100L
         private const val KEYBOARD_WATCHDOG_MS = 1000L
         private const val LEVEL_UPDATE_MS = 50L
@@ -87,7 +92,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val COLOR_RING = 0xFFE8EAED.toInt()
     }
 
-    /** RETRY: the last recording failed and is kept; tap retries it, a long press discards it. */
+    /** RETRY: the last recording failed and is kept; tap retries it, the ✕ next to it (or a long press) discards it. */
     private enum class State { IDLE, RECORDING, TRANSCRIBING, RETRY }
 
     @Volatile private var state = State.IDLE
@@ -98,6 +103,12 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var feedbackView: TextView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var feedbackLayoutParams: WindowManager.LayoutParams? = null
+    private var holdRing: HoldRingView? = null
+    private var holdRingParams: WindowManager.LayoutParams? = null
+    private var holdRingAnimator: android.animation.ValueAnimator? = null
+    private var discardView: TextView? = null
+    private var discardParams: WindowManager.LayoutParams? = null
+    private var edgeGlow: EdgeGlowView? = null
     private var audioRecord: AudioRecord? = null
     private var recorderThread: Thread? = null
     private var pcmStream: ByteArrayOutputStream? = null
@@ -310,11 +321,13 @@ class WhisperAccessibilityService : AccessibilityService() {
                     touchX = ev.rawX; touchY = ev.rawY
                     longPressed = false
                     handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                    startHoldRing()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (abs(ev.rawX - touchX) + abs(ev.rawY - touchY) >= TAP_THRESHOLD_DP * dp) {
                         handler.removeCallbacks(longPress)
+                        stopHoldRing()
                     }
                     if (longPressed) return@setOnTouchListener true
                     val (_, screenH) = screenSize
@@ -322,10 +335,12 @@ class WhisperAccessibilityService : AccessibilityService() {
                     params.y = (startY + (ev.rawY - touchY).toInt()).coerceIn(0, maxOf(0, screenH - ringSize))
                     wm.updateViewLayout(v, params)
                     updateFeedbackPosition()
+                    updateSatellitePositions()
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     handler.removeCallbacks(longPress)
+                    stopHoldRing()
                     val moved = abs(ev.rawX - touchX) + abs(ev.rawY - touchY)
                     if (longPressed || ev.action == MotionEvent.ACTION_CANCEL) {
                         // Handled when the long press fired.
@@ -374,7 +389,133 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         wm.addView(overlay, params)
         wm.addView(feedback, feedbackParams)
+        addSatellites(wm)
         updateOverlayVisibility()
+    }
+
+    /** Windows next to the button: the hold ring, the discard button and the edge glow. */
+    private fun addSatellites(wm: WindowManager) {
+        val untouchable = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+            // The ring may reach past the screen edge; without this Android would shift it off-center.
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
+        val ringSize = (HOLD_RING_DP * dp).toInt()
+        val ring = HoldRingView(this, COLOR_RECORDING_CLEANUP or 0xFF000000.toInt()).apply { visibility = View.GONE }
+        val ringParams = WindowManager.LayoutParams(
+            ringSize, ringSize, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, untouchable, PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+
+        val discardSize = (DISCARD_DP * dp).toInt()
+        val discard = TextView(this).apply {
+            text = "✕"
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
+            background = circle(COLOR_IDLE)
+            contentDescription = "Discard recording"
+            visibility = View.GONE
+            setOnClickListener { discardFailed() }
+        }
+        val discardLp = WindowManager.LayoutParams(
+            discardSize, discardSize, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            // Starts hidden, so untouchable; setDiscardVisible switches both.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+
+        val glow = EdgeGlowView(this).apply { visibility = View.GONE }
+        val glowParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            untouchable or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            setFitInsetsTypes(0)
+        }
+
+        holdRing = ring; holdRingParams = ringParams
+        discardView = discard; discardParams = discardLp
+        edgeGlow = glow
+        positionSatellites()
+        wm.addView(glow, glowParams)
+        wm.addView(ring, ringParams)
+        wm.addView(discard, discardLp)
+    }
+
+    /** Center the hold ring on the button and put the discard button on its inner side. */
+    private fun positionSatellites() {
+        val bubble = layoutParams ?: return
+        val buttonSize = (RING_DP * dp).toInt()
+        val cx = bubble.x + buttonSize / 2
+        val cy = bubble.y + buttonSize / 2
+        holdRingParams?.let { p ->
+            p.x = cx - p.width / 2
+            p.y = cy - p.height / 2
+        }
+        discardParams?.let { p ->
+            val gap = (4 * dp).toInt()
+            p.x = if (onRightEdge) bubble.x - p.width - gap else bubble.x + buttonSize + gap
+            p.y = cy - p.height / 2
+        }
+    }
+
+    private fun updateSatellitePositions() {
+        positionSatellites()
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        holdRing?.let { v -> holdRingParams?.let { wm.updateViewLayout(v, it) } }
+        discardView?.let { v -> discardParams?.let { wm.updateViewLayout(v, it) } }
+    }
+
+    /**
+     * Fill the ring while the button is held, if holding means something here: a dictation with
+     * AI cleanup. It starts after a short delay so taps don't flash it.
+     */
+    private fun startHoldRing() {
+        val ring = holdRing ?: return
+        if (state != State.IDLE || prefs().cleanupMode() == Prefs.CLEANUP_NEVER) return
+        val total = ViewConfiguration.getLongPressTimeout().toLong()
+        holdRingAnimator?.cancel()
+        holdRingAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            startDelay = HOLD_RING_DELAY_MS
+            duration = (total - HOLD_RING_DELAY_MS).coerceAtLeast(100)
+            addUpdateListener { ring.progress = it.animatedValue as Float }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationStart(animation: android.animation.Animator) {
+                    ring.progress = 0f
+                    ring.alpha = 1f
+                    ring.visibility = View.VISIBLE
+                }
+            })
+            start()
+        }
+    }
+
+    /** Like the button, the hidden discard window must not take touches meant for the app below. */
+    private fun setDiscardVisible(visible: Boolean) {
+        val view = discardView ?: return
+        val params = discardParams ?: return
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        if (view.visibility == visibility) return
+        view.visibility = visibility
+        params.flags = if (visible) params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            else params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        (getSystemService(WINDOW_SERVICE) as WindowManager).updateViewLayout(view, params)
+    }
+
+    /** Hide the ring; after a completed hold it stays full for a moment as confirmation. */
+    private fun stopHoldRing() {
+        val ring = holdRing ?: return
+        holdRingAnimator?.cancel()
+        holdRingAnimator = null
+        if (ring.visibility != View.VISIBLE) return
+        val delay = if (ring.progress >= 1f) 400L else 0L
+        ring.animate().alpha(0f).setStartDelay(delay).setDuration(150).withEndAction {
+            ring.visibility = View.GONE
+            ring.alpha = 1f
+        }.start()
     }
 
     /**
@@ -417,6 +558,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         positionOverlay(params)
         (getSystemService(WINDOW_SERVICE) as WindowManager).updateViewLayout(view, params)
         updateFeedbackPosition()
+        updateSatellitePositions()
     }
 
     private fun updateFeedbackPosition() {
@@ -437,6 +579,11 @@ class WhisperAccessibilityService : AccessibilityService() {
             wm.removeView(it)
             feedbackView = null
         }
+        holdRingAnimator?.cancel()
+        listOf(holdRing, discardView, edgeGlow).forEach { it?.let(wm::removeView) }
+        holdRing = null; holdRingParams = null
+        discardView = null; discardParams = null
+        edgeGlow = null
         button = null
         levelBars = null
         spinner = null
@@ -508,6 +655,12 @@ class WhisperAccessibilityService : AccessibilityService() {
             visibility = if (state == State.RECORDING) View.VISIBLE else View.GONE
         }
         spinner?.visibility = if (state == State.TRANSCRIBING) View.VISIBLE else View.GONE
+        setDiscardVisible(state == State.RETRY && overlayView?.visibility == View.VISIBLE)
+        edgeGlow?.apply {
+            visibility = if (state == State.RECORDING && prefs().edgeGlow()) View.VISIBLE else View.GONE
+            setColor(if (cleanupThisDictation) COLOR_RECORDING_CLEANUP else COLOR_RECORDING)
+            setLevel(0f)
+        }
     }
 
     private fun onTap() {
@@ -524,19 +677,24 @@ class WhisperAccessibilityService : AccessibilityService() {
         when (state) {
             State.IDLE -> {
                 val cleanup = prefs().cleanupMode() != Prefs.CLEANUP_NEVER
-                startRecording(cleanup)
+                startRecording(cleanup, held = true)
                 if (cleanup) showFeedback("Recording with AI cleanup", 1500)
             }
-            State.RETRY -> {
-                failedPcm = null
-                enter(State.IDLE)
-                showFeedback("Recording discarded")
-            }
+            // Kept as a shortcut; the visible way is the ✕ next to the button.
+            State.RETRY -> discardFailed()
             else -> onTap()
         }
     }
 
-    private fun startRecording(cleanup: Boolean) {
+    private fun discardFailed() {
+        if (state != State.RETRY) return
+        failedPcm = null
+        vibrate(Haptic.DISCARD)
+        enter(State.IDLE)
+        showFeedback("Recording discarded")
+    }
+
+    private fun startRecording(cleanup: Boolean, held: Boolean = false) {
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             toast("Grant audio permission in Phone Whisper app"); return
@@ -573,7 +731,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         failedPcm = null
         cleanupThisDictation = cleanup
         enter(State.RECORDING)
-        vibrate()
+        vibrate(if (held && cleanup) Haptic.CLEANUP else Haptic.CLICK)
 
         // Load the local model while the user speaks if it was released for inactivity.
         if (prefs().getBoolean("use_local", true) && localTranscriber == null && !modelLoading) reloadModel()
@@ -589,7 +747,7 @@ class WhisperAccessibilityService : AccessibilityService() {
                     if (now - lastLevelAt >= LEVEL_UPDATE_MS) {
                         lastLevelAt = now
                         val level = LevelBarsView.levelOf(buf, n)
-                        handler.post { levelBars?.setLevel(level) }
+                        handler.post { levelBars?.setLevel(level); edgeGlow?.setLevel(level) }
                     }
                 } else if (n < 0) break
             }
@@ -736,7 +894,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         failedPcm = pcm
         if (pcm != null) {
             enter(State.RETRY)
-            showFeedback("$message\nTap to retry, hold to discard", 5000)
+            showFeedback("$message\nTap to retry, ✕ to discard", 5000)
         } else {
             enter(State.IDLE)
             showFeedback(message, 4000)
@@ -780,14 +938,21 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun vibrate() {
+    /** Distinct patterns, so the thumb that covers the button still feels what happened. */
+    private enum class Haptic { CLICK, CLEANUP, DISCARD }
+
+    private fun vibrate(kind: Haptic = Haptic.CLICK) {
         if (!prefs().haptics()) return
         val vibrator = if (Build.VERSION.SDK_INT >= 31) {
             (getSystemService(VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
         } else {
             @Suppress("DEPRECATION") getSystemService(VIBRATOR_SERVICE) as? Vibrator
         } ?: return
-        vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+        vibrator.vibrate(when (kind) {
+            Haptic.CLICK -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+            Haptic.CLEANUP -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
+            Haptic.DISCARD -> VibrationEffect.createOneShot(180, VibrationEffect.DEFAULT_AMPLITUDE)
+        })
     }
 
     // --- Text injection ---

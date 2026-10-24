@@ -24,7 +24,14 @@ class ButtonSettingsActivity : SettingsScreen() {
                     "shows in an app (e.g. with a hardware keyboard), choose \"Always\"."
             ))
             addView(switchRow(
-                "Vibrate", "Short vibration when recording starts and stops", Prefs.HAPTICS, true
+                "Vibrate",
+                "Click when recording starts and stops, double pulse for AI cleanup, long buzz when discarding",
+                Prefs.HAPTICS, true
+            ))
+            addView(switchRow(
+                "Glowing screen edge",
+                "While recording, the screen edges glow red (purple with AI cleanup), so you see it even when your thumb covers the button",
+                Prefs.EDGE_GLOW, false
             ))
             addView(switchRow(
                 "Cancel when the screen turns off",
