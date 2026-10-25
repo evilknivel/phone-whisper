@@ -58,7 +58,7 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 
 Grab the latest APK from [GitHub Releases](https://github.com/evilknivel/phone-whisper/releases), open it on your phone and install it. Release APKs are signed with this fork's release key, so later versions install over earlier ones.
 
-**Coming from a 0.x beta?** The betas were signed with a development key. Android only installs an update signed with the same key, so uninstall the beta once before installing 1.0.0. Your settings and downloaded models are removed with it.
+**Coming from 1.0.0 or a beta?** Since 1.1.0 the app ID is `com.evilknivel.phonewhisper` (before: `com.kafkasl.phonewhisper`), so Android installs it as a separate app. Uninstall the old Phone Whisper first, or at least switch off its accessibility service, otherwise two buttons appear. Settings and downloaded models don't carry over; the setup assistant walks you through again. Later updates install over 1.1.0 as usual.
 
 Android blocks the accessibility permission for apps installed from a file ("restricted settings"). If enabling the service shows "App was denied access": open **Settings → Apps → Phone Whisper → ⋮ → Allow restricted settings**, then enable the service again.
 
@@ -120,7 +120,7 @@ At the very bottom, **About** shows the installed version.
 
 Tap a model to download it, tap it again to select it, and use ✕ to delete it. Parakeet detects the spoken language itself; Whisper uses the **Your language** setting. The English-only Whisper Base of earlier versions stays usable while installed but is no longer offered.
 
-Most models are downloaded as individual files from Hugging Face (the sherpa-onnx mirrors and [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), pinned to a commit. Parakeet 110M comes from the sherpa-onnx release archive. Models live in app storage under `/data/data/com.kafkasl.phonewhisper/files/models/`.
+Most models are downloaded as individual files from Hugging Face (the sherpa-onnx mirrors and [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), pinned to a commit. Parakeet 110M comes from the sherpa-onnx release archive. Models live in app storage under `/data/data/com.evilknivel.phonewhisper/files/models/`.
 
 ## Cloud providers
 
@@ -238,3 +238,4 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 12. **Feedback under the thumb**: a hold ring larger than the button, growing in the color of the mode; distinct vibrations; a ✕ next to the orange button to discard; an optional glowing screen edge while recording; messages shown above the thumb
 13. **Version 1.0.0**: documentation in English and German, changelog, contribution guide with a call for translators, an About row with the version, and the first release signed with this fork's release key
 14. **Translation**: hold the button and slide onto a target language on an arc; the cleanup model translates, or Whisper offline into English without a provider; + and ⚙ on the arc and a Quick Settings tile open the settings
+15. **Version 1.1.0**: translation and settings shortcuts as a stable release, and this fork's own app ID `com.evilknivel.phonewhisper`

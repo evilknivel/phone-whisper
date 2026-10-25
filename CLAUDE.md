@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Phone Whisper is a single-module Android app (Kotlin, package `com.kafkasl.phonewhisper`, minSdk 30, targetSdk 36, compileSdk 37, JDK 17, arm64-v8a only; AGP 9 with its built-in Kotlin, Gradle 9). It shows a floating push-to-talk overlay button, records audio, trims silence (Silero VAD), transcribes it locally (sherpa-onnx: Parakeet, Whisper, Moonshine) or in the cloud (OpenAI, OpenRouter, or a custom OpenAI-compatible server), optionally cleans up the text with a chat model from one of those providers, and inserts the result into the focused text field of whatever app is in the foreground. This repo is a fork of kafkasl/phone-whisper; README.md ends with a short development history.
+Phone Whisper is a single-module Android app (Kotlin, package and app ID `com.evilknivel.phonewhisper` since 1.1.0, before that `com.kafkasl.phonewhisper`; minSdk 30, targetSdk 36, compileSdk 37, JDK 17, arm64-v8a only; AGP 9 with its built-in Kotlin, Gradle 9). It shows a floating push-to-talk overlay button, records audio, trims silence (Silero VAD), transcribes it locally (sherpa-onnx: Parakeet, Whisper, Moonshine) or in the cloud (OpenAI, OpenRouter, or a custom OpenAI-compatible server), optionally cleans up the text with a chat model from one of those providers, and inserts the result into the focused text field of whatever app is in the foreground. This repo is a fork of kafkasl/phone-whisper; README.md ends with a short development history.
 
 ## Commands
 
@@ -22,8 +22,8 @@ make clean
 Run a single test class or method:
 
 ```bash
-./gradlew testDebugUnitTest --tests 'com.kafkasl.phonewhisper.PostProcessorTest'
-./gradlew testDebugUnitTest --tests 'com.kafkasl.phonewhisper.TranscriberClientTest.parses success response'
+./gradlew testDebugUnitTest --tests 'com.evilknivel.phonewhisper.PostProcessorTest'
+./gradlew testDebugUnitTest --tests 'com.evilknivel.phonewhisper.TranscriberClientTest.parses success response'
 ```
 
 On macOS the Makefile defaults `JAVA_HOME`/`ANDROID_HOME` to the Homebrew/Android Studio paths. Elsewhere, set them yourself or put `sdk.dir` in `local.properties`.

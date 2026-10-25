@@ -5,15 +5,15 @@ plugins {
 }
 
 android {
-    namespace = "com.kafkasl.phonewhisper"
+    namespace = "com.evilknivel.phonewhisper"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.kafkasl.phonewhisper"
+        applicationId = "com.evilknivel.phonewhisper"
         minSdk = 30
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.1.0-beta.1"
+        versionCode = 13
+        versionName = "1.1.0"
 
         ndk { abiFilters += "arm64-v8a" }
     }

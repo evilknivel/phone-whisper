@@ -2,7 +2,7 @@
 
 All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the last version of the [original app](https://github.com/kafkasl/phone-whisper) by Pol Alvarez.
 
-## Unreleased
+## 1.1.0 – 2026-10-25
 
 ### Translation
 - Hold the button, then slide your thumb onto a target language on the arc that opens around it, and let go: the dictation is transcribed with your selected model and translated by the AI cleanup model. The button shows the language code while you speak.
@@ -16,6 +16,12 @@ All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the
 
 ### Button
 - The hold ring also shows when cleanup is set to *never* (red).
+
+### App ID
+- The app ID (package name) is now `com.evilknivel.phonewhisper` instead of the original app's `com.kafkasl.phonewhisper`.
+
+### Upgrading from 1.0.0 or a beta
+Because of the new app ID, Android installs 1.1.0 as a separate app. Uninstall the old Phone Whisper first, or at least switch off its accessibility service, otherwise two buttons appear. Settings and models don't carry over.
 
 ## 1.0.0 – 2026-10-25
 

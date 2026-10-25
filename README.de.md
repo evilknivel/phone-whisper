@@ -58,7 +58,7 @@ Mit Phone Whisper sprichst du in fast jede App, ohne die Tastatur zu wechseln. T
 
 Lade die aktuelle APK von den [GitHub Releases](https://github.com/evilknivel/phone-whisper/releases), öffne sie auf dem Handy und installiere sie. Release-APKs sind mit dem Release-Schlüssel dieses Forks signiert, spätere Versionen lassen sich also darüber installieren.
 
-**Du kommst von einer 0.x-Beta?** Die Betas waren mit einem Entwicklungsschlüssel signiert. Android installiert ein Update nur mit demselben Schlüssel; deinstalliere die Beta deshalb einmal, bevor du 1.0.0 installierst. Einstellungen und geladene Modelle gehen dabei verloren.
+**Du kommst von 1.0.0 oder einer Beta?** Seit 1.1.0 lautet die App-ID `com.evilknivel.phonewhisper` (vorher `com.kafkasl.phonewhisper`), deshalb installiert Android sie als eigene App. Deinstalliere zuerst das alte Phone Whisper oder schalte wenigstens dessen Bedienungshilfe aus, sonst erscheinen zwei Buttons. Einstellungen und geladene Modelle werden nicht übernommen; der Einrichtungsassistent führt dich erneut durch. Spätere Updates installieren sich wie gewohnt über 1.1.0.
 
 Android sperrt die Bedienungshilfen-Berechtigung für Apps, die aus einer Datei installiert wurden („eingeschränkte Einstellungen“). Erscheint beim Einschalten „App wurde Zugriff verweigert“: **Einstellungen → Apps → Phone Whisper → ⋮ → Eingeschränkte Einstellungen zulassen**, dann den Dienst erneut einschalten.
 
@@ -120,7 +120,7 @@ Ganz unten zeigt **About** die installierte Version.
 
 Tippe auf ein Modell, um es zu laden, noch einmal, um es auszuwählen, und auf ✕, um es zu löschen. Parakeet erkennt die gesprochene Sprache selbst; Whisper nutzt die Einstellung **Your language**. Das rein englische Whisper Base früherer Versionen bleibt nutzbar, solange es installiert ist, wird aber nicht mehr angeboten.
 
-Die meisten Modelle werden als einzelne Dateien von Hugging Face geladen (die sherpa-onnx-Spiegel und [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), auf einen festen Commit gepinnt. Parakeet 110M kommt aus dem Release-Archiv von sherpa-onnx. Die Modelle liegen im App-Speicher unter `/data/data/com.kafkasl.phonewhisper/files/models/`.
+Die meisten Modelle werden als einzelne Dateien von Hugging Face geladen (die sherpa-onnx-Spiegel und [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), auf einen festen Commit gepinnt. Parakeet 110M kommt aus dem Release-Archiv von sherpa-onnx. Die Modelle liegen im App-Speicher unter `/data/data/com.evilknivel.phonewhisper/files/models/`.
 
 ## Cloud-Anbieter
 
@@ -238,3 +238,4 @@ Apache License 2.0, siehe [LICENSE](LICENSE). Urheberrecht am ursprünglichen Co
 12. **Rückmeldung unter dem Daumen**: ein Halte-Ring, größer als der Button, der in der Farbe des Modus wächst; unterschiedliche Vibrationen; ein ✕ neben dem orangen Button zum Verwerfen; ein optional leuchtender Bildschirmrand während der Aufnahme; Meldungen über dem Daumen
 13. **Version 1.0.0**: Dokumentation auf Englisch und Deutsch, Changelog, Leitfaden zum Mitmachen mit Aufruf an Übersetzer, eine About-Zeile mit der Version und das erste Release mit dem Release-Schlüssel dieses Forks
 14. **Übersetzen**: Button halten und auf eine Zielsprache im Halbkreis schieben; das Glättungsmodell übersetzt, ohne Anbieter Whisper offline ins Englische; + und ⚙ im Halbkreis sowie eine Kachel in den Schnelleinstellungen öffnen die Einstellungen
+15. **Version 1.1.0**: Übersetzen und Einstellungs-Abkürzungen als stabiles Release und eine eigene App-ID dieses Forks, `com.evilknivel.phonewhisper`
