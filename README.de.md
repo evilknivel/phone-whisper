@@ -60,7 +60,7 @@ Lade die aktuelle APK von den [GitHub Releases](https://github.com/evilknivel/ph
 
 **Du kommst von 1.0.0 oder einer Beta?** Seit 1.1.0 lautet die App-ID `com.evilknivel.phonewhisper` (vorher `com.kafkasl.phonewhisper`), deshalb installiert Android sie als eigene App. Deinstalliere zuerst das alte Phone Whisper oder schalte wenigstens dessen Bedienungshilfe aus, sonst erscheinen zwei Buttons. Einstellungen und geladene Modelle werden nicht übernommen; der Einrichtungsassistent führt dich erneut durch. Spätere Updates installieren sich wie gewohnt über 1.1.0.
 
-Android sperrt die Bedienungshilfen-Berechtigung für Apps, die aus einer Datei installiert wurden („eingeschränkte Einstellungen“). Erscheint beim Einschalten „App wurde Zugriff verweigert“: **Einstellungen → Apps → Phone Whisper → ⋮ → Eingeschränkte Einstellungen zulassen**, dann den Dienst erneut einschalten.
+Android sperrt die Bedienungshilfen-Berechtigung für Apps, die aus einer Datei installiert wurden („eingeschränkte Einstellungen“). Öffne deshalb zuerst **Einstellungen → Apps → Phone Whisper → ⋮ → Eingeschränkte Einstellungen zulassen** und schalte dann den Dienst ein; der Einrichtungsassistent führt dich in dieser Reihenfolge durch. Manche Android-Versionen bieten den Menüpunkt erst an, nachdem das Einschalten einmal verweigert wurde („App wurde Zugriff verweigert“).
 
 ### Selbst bauen
 
@@ -89,7 +89,7 @@ Beim ersten Start erklärt ein **Einrichtungsassistent** die App und führt dich
 2. **offline oder online** transkribieren
 3. ein **Modell** (offline; er schlägt eines passend zur Sprache deines Handys vor und lädt es) oder einen **Cloud-Dienst mit API-Schlüssel** (online)
 4. die **KI-Glättung**: nur beim Halten, immer oder nie, dazu Dienst und Schlüssel
-5. die **Bedienungshilfe**: was sie sieht und warum, deine Zustimmung und eine Abkürzung zu den Systemeinstellungen (samt Hilfe zu „eingeschränkten Einstellungen“)
+5. die **Bedienungshilfe**: was sie sieht und warum, deine Zustimmung, dann der Reihe nach: eingeschränkte Einstellungen in der App-Info zulassen (bei APKs aus einer Datei) und den Dienst einschalten
 
 Du kannst ihn überspringen und alles selbst einstellen oder ihn unter **More settings → Setup assistant** erneut starten.
 

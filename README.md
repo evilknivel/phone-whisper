@@ -60,7 +60,7 @@ Grab the latest APK from [GitHub Releases](https://github.com/evilknivel/phone-w
 
 **Coming from 1.0.0 or a beta?** Since 1.1.0 the app ID is `com.evilknivel.phonewhisper` (before: `com.kafkasl.phonewhisper`), so Android installs it as a separate app. Uninstall the old Phone Whisper first, or at least switch off its accessibility service, otherwise two buttons appear. Settings and downloaded models don't carry over; the setup assistant walks you through again. Later updates install over 1.1.0 as usual.
 
-Android blocks the accessibility permission for apps installed from a file ("restricted settings"). If enabling the service shows "App was denied access": open **Settings → Apps → Phone Whisper → ⋮ → Allow restricted settings**, then enable the service again.
+Android blocks the accessibility permission for apps installed from a file ("restricted settings"). So first open **Settings → Apps → Phone Whisper → ⋮ → Allow restricted settings**, then enable the service; the setup assistant walks you through it in this order. Some Android versions offer that menu entry only after enabling was refused once ("App was denied access").
 
 ### Build from source
 
@@ -89,7 +89,7 @@ On first launch a **setup assistant** explains the app and walks you through:
 2. **offline or online** transcription
 3. a **model** (offline; it suggests one for your phone's language and downloads it) or a **cloud service and API key** (online)
 4. **AI cleanup**: only when holding the button, always, or never, and the service and key for it
-5. the **Accessibility Service**: what it accesses and why, your agreement, and a shortcut to the system settings (plus help for "restricted settings")
+5. the **Accessibility Service**: what it accesses and why, your agreement, then in order: allow restricted settings in App info (for APKs installed from a file) and turn on the service
 
 You can skip it and set everything up yourself, or run it again under **More settings → Setup assistant**.
 

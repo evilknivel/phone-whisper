@@ -2,6 +2,11 @@
 
 All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the last version of the [original app](https://github.com/kafkasl/phone-whisper) by Pol Alvarez.
 
+## Unreleased
+
+### Changed
+- Setup assistant, accessibility step: the steps are numbered and in the order Android needs them: first allow restricted settings in App info (for APKs installed from a file), then turn on the service.
+
 ## 1.2.1 – 2026-10-25
 
 ### Changed

@@ -307,7 +307,16 @@ class SetupWizardActivity : SettingsScreen() {
             layoutParams = LinearLayout.LayoutParams(LP_WRAP, LP_WRAP).apply { marginStart = dp(16) }
         }
         addView(agree)
-        val open = settingsRow("Open accessibility settings", "") {
+        // Apps installed from a file need "Allow restricted settings" before Android lets the
+        // service be switched on, so that comes first.
+        addView(settingsRow("1. Allow restricted settings", "Open App info, tap ⋮ in the top right, choose \"Allow restricted settings\"") {
+            AccessibilityDisclosure.openAppInfo(this@SetupWizardActivity)
+        })
+        addView(note(
+            "Only needed if you installed the APK yourself. If the ⋮ menu doesn't offer it, go on with step 2: " +
+                "some Android versions show it only after Android has refused once (\"App was denied access\")."
+        ))
+        val open = settingsRow("2. Turn on Phone Whisper", "") {
             if (!agree.isChecked) { toast("Please read and agree first"); return@settingsRow }
             AccessibilityDisclosure.giveConsent(this@SetupWizardActivity)
             AccessibilityDisclosure.openSettings(this@SetupWizardActivity)
@@ -316,16 +325,9 @@ class SetupWizardActivity : SettingsScreen() {
         onRefresh {
             sub.visibility = View.VISIBLE
             sub.text = if (WhisperAccessibilityService.instance != null) "✓ Phone Whisper is enabled"
-                else "Find \"Phone Whisper\" under installed apps and turn it on"
+                else "Opens the accessibility settings: find \"Phone Whisper\" under installed apps and turn it on"
         }
         addView(open)
-        addView(note(
-            "If Android says \"App was denied access\" or the switch is greyed out: open App info, " +
-                "tap ⋮ in the top right, choose \"Allow restricted settings\", then try again."
-        ))
-        addView(settingsRow("Open App info", "For \"Allow restricted settings\"") {
-            AccessibilityDisclosure.openAppInfo(this@SetupWizardActivity)
-        })
     }
 
     private fun done() = page("All set", nextLabel = "Finish") {
