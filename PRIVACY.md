@@ -24,7 +24,7 @@ In cloud mode, recorded audio is sent directly from the device to the transcript
 
 When you open the model picker, the app loads the list of available models from the provider. For OpenAI and a custom server this request includes your API key; no audio or text is sent.
 
-If optional cleanup is enabled, the transcribed text is also sent directly from the device to the chat API of the provider you select to improve punctuation, capitalization, and clarity.
+If optional cleanup is enabled, the transcribed text is also sent directly from the device to the chat API of the provider you select to improve punctuation, capitalization, and clarity. When you pick a translation language, the same provider also translates it. Without a cleanup provider, translation into English runs on the device with a Whisper model.
 
 A custom server address may use unencrypted http, for a server on your own network. Audio sent that way can be read by anyone on that network.
 

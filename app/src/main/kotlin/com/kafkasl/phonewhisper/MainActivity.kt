@@ -18,6 +18,7 @@ import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.radiobutton.MaterialRadioButton
 import com.kafkasl.phonewhisper.Prefs.cleanupMode
 import com.kafkasl.phonewhisper.Prefs.language
+import com.kafkasl.phonewhisper.Prefs.translationLanguages
 
 /**
  * The main settings screen: status, setup, transcription (cloud or local models) and cleanup.
@@ -89,15 +90,16 @@ class MainActivity : SettingsScreen() {
                 WhisperAccessibilityService.instance?.reloadModel()
             })
             addView(choiceRow(
-                "Language",
+                "Your language",
                 Prefs.LANGUAGES,
                 current = { prefs().language() },
                 // The service reloads a local Whisper model when this pref changes.
                 onPick = { prefs().edit().putString(Prefs.LANGUAGE, it).apply() },
             ))
             addView(note(
-                "Used by Whisper and cloud transcription. Set it if short dictations come out in the " +
-                    "wrong language. Parakeet always detects the language itself."
+                "The language you speak. Used by Whisper and cloud transcription, and as the source when " +
+                    "translating. Set it if short dictations come out in the wrong language. Parakeet always " +
+                    "detects the language itself."
             ))
 
             cloudContainer = vertical(0).apply {
@@ -124,6 +126,15 @@ class MainActivity : SettingsScreen() {
                 "A language model fixes punctuation, grammar and recognition errors. " +
                     "Tap the button for a plain dictation; hold it to dictate with cleanup (the button turns purple)."
             ))
+            val translationRow = navRow("Translation", "", TranslationSettingsActivity::class.java)
+            val translationSub = translationRow.subtitle()
+            onRefresh {
+                val selected = prefs().translationLanguages()
+                translationSub.visibility = View.VISIBLE
+                translationSub.text = if (selected.isEmpty()) "Hold, then slide onto a language: pick languages"
+                    else "Hold, then slide onto: " + selected.joinToString(" · ") { it.uppercase() }
+            }
+            addView(translationRow)
             promptContainer = vertical(0).apply {
                 addView(providerRow(CloudTask.POST_PROCESSING, "Cleanup provider"))
                 addView(modelRow(CloudTask.POST_PROCESSING, "Cleanup model"))

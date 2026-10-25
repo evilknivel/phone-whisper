@@ -17,13 +17,20 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 **Transcription**
 - **Local, on-device** with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx): Parakeet (110M, 0.6B, Ultra), Whisper (Base, Small) and Moonshine. Audio never leaves the phone, and local mode never falls back to the cloud.
 - **Cloud** with OpenAI, [OpenRouter](https://openrouter.ai) (any speech-to-text model there), or your own **OpenAI-compatible server** (Groq, a Whisper server on your computer). The model is selectable per provider, from the provider's live model list.
-- **Languages**: Parakeet 0.6B and Ultra understand 25 European languages including German, Whisper 99 languages. A **Language** setting (default: detect automatically) fixes the language for Whisper and the cloud.
+- **Languages**: Parakeet 0.6B and Ultra understand 25 European languages including German, Whisper 99 languages. A **Your language** setting (default: detect automatically) fixes the spoken language for Whisper and the cloud.
 - **Silence trimming** with Silero VAD before transcribing: faster, cheaper, and no invented text for silent stretches. If no speech is detected, nothing is sent; tapping retry sends the untrimmed recording.
 
 **AI cleanup (optional)**
 - A chat model (OpenAI, OpenRouter or your own server) fixes punctuation, grammar and obvious recognition errors. It keeps your language and never translates.
 - **Hold the button** to dictate with cleanup, tap it for a plain dictation (default). Cleanup can also be set to *always* or *never*.
 - Presets: *Simple cleanup* (default), *Dev cleanup* (turns "command mode …" into shell commands), or your own prompt.
+
+**Translation (optional)**
+- Speak in your language, insert the text in another one. Pick up to 6 target languages under **AI cleanup → Translation**.
+- **Hold** the button until the ring is full: the languages appear on an arc around it. **Slide your thumb** onto one (it lights up, with a tick) and let go. The button shows the language code, e.g. **ES**, while you speak. Letting go near the button is a normal dictation with cleanup.
+- Transcription always uses the model from your settings (Parakeet Ultra, say, or the cloud). The **AI cleanup model** then cleans up and translates in one step.
+- **Without a cleanup provider**, only English is offered: an installed **Whisper Base or Small** translates it offline, for that dictation only. Whisper Small translates noticeably better than Base.
+- The arc also has **+** (opens the language list) and **⚙** (opens the settings). Letting go on them drops the recording.
 
 **The button**
 - Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge and stays there across rotation.
@@ -32,6 +39,7 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 - If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, or tap the **✕** next to it to discard it.
 - Your thumb covers the button, so the app also tells you without looking: a **ring larger than the button** grows around it while you hold it (purple for AI cleanup, orange for discarding; it triggers after 0.8 s), and **different vibrations** mark a normal start (click), a start with AI cleanup (double pulse) and discarding (long buzz). Optionally the **screen edges glow** red or purple while recording (*Button & insertion → Glowing screen edge*).
 - Messages appear above your thumb, above the ring.
+- A **Quick Settings tile** (add *Phone Whisper* in the notification shade's edit mode) opens the settings from anywhere; so does the ⚙ on the arc.
 - Turning the screen off while recording cancels the recording.
 
 **Inserting text**
@@ -89,7 +97,7 @@ The **Status** line at the top shows what is still missing, for example "Setup r
 
 ## Settings
 
-The main screen holds status, setup, transcription (mode, language, models or cloud provider) and AI cleanup (mode, service, model, prompt). Everything else is under **More settings**, together with the setup assistant:
+The main screen holds status, setup, transcription (mode, your language, models or cloud provider) and AI cleanup (mode, translation languages, service, model, prompt). Everything else is under **More settings**, together with the setup assistant:
 
 | Page | Settings |
 |---|---|
@@ -110,7 +118,7 @@ At the very bottom, **About** shows the installed version.
 | Parakeet 0.6B | 671 MB | 25 European languages | Best quality |
 | Parakeet Ultra | 630 MB | 25 European languages | Most accurate |
 
-Tap a model to download it, tap it again to select it, and use ✕ to delete it. Parakeet detects the spoken language itself; Whisper uses the **Language** setting. The English-only Whisper Base of earlier versions stays usable while installed but is no longer offered.
+Tap a model to download it, tap it again to select it, and use ✕ to delete it. Parakeet detects the spoken language itself; Whisper uses the **Your language** setting. The English-only Whisper Base of earlier versions stays usable while installed but is no longer offered.
 
 Most models are downloaded as individual files from Hugging Face (the sherpa-onnx mirrors and [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), pinned to a commit. Parakeet 110M comes from the sherpa-onnx release archive. Models live in app storage under `/data/data/com.kafkasl.phonewhisper/files/models/`.
 
@@ -229,3 +237,4 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 11. **Setup assistant and hold-to-clean-up**: a first-run assistant for permissions, mode, model or provider, cleanup and the accessibility service (with the disclosure Google Play asks for); holding the button dictates with AI cleanup
 12. **Feedback under the thumb**: a hold ring larger than the button, growing in the color of the mode; distinct vibrations; a ✕ next to the orange button to discard; an optional glowing screen edge while recording; messages shown above the thumb
 13. **Version 1.0.0**: documentation in English and German, changelog, contribution guide with a call for translators, an About row with the version, and the first release signed with this fork's release key
+14. **Translation**: hold the button and slide onto a target language on an arc; the cleanup model translates, or Whisper offline into English without a provider; + and ⚙ on the arc and a Quick Settings tile open the settings

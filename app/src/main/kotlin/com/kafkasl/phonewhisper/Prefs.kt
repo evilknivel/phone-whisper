@@ -59,8 +59,13 @@ object Prefs {
         CLEANUP_NEVER to "Never",
     )
 
+    /** Target languages offered on the arc when the button is held, comma-separated in arc order. */
+    const val TRANSLATION_LANGUAGES = "translation_languages"
+
     /** Set once the setup assistant was finished or skipped. */
     const val SETUP_DONE = "setup_done"
+
+    fun SharedPreferences.translationLanguages() = Translation.parse(getString(TRANSLATION_LANGUAGES, null))
 
     fun SharedPreferences.language() = getString(LANGUAGE, "").orEmpty()
     fun SharedPreferences.overlayKeyboardOnly() = getString(OVERLAY_MODE, OVERLAY_KEYBOARD) == OVERLAY_KEYBOARD

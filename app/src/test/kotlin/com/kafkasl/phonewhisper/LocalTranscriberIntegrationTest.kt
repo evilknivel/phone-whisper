@@ -63,6 +63,29 @@ class LocalTranscriberIntegrationTest {
         }
     }
 
+    /** Whisper switches to translating per call and back, without reloading. */
+    @Test fun `multilingual Whisper translates German into English and switches back`() {
+        val modelsDir = System.getenv("PHONE_WHISPER_MODELS_DIR")?.let(::File)
+        val wav = System.getenv("PHONE_WHISPER_TEST_WAV_DE")?.let(::File)
+        assumeTrue(System.getenv("SHERPA_JNI_DIR") != null && modelsDir != null && wav != null)
+
+        val (samples, sampleRate) = readWav(wav!!)
+        for (model in MODEL_CATALOG.filter { it.name.startsWith("Whisper") && !it.legacy }) {
+            val transcriber = LocalTranscriber.create(File(modelsDir, model.archive), 2, "de")!!
+            try {
+                assertTrue(model.name, transcriber.canTranslateToEnglish)
+                val english = transcriber.transcribe(samples, sampleRate, translateToEnglish = true)
+                println("${model.name} [translate]: $english")
+                assertTrue("${model.name}: '$english'", Regex("(?i)sausage|end").containsMatchIn(english))
+                assertFalse("${model.name}: '$english'", "Wurst" in english)
+                val german = transcriber.transcribe(samples, sampleRate)
+                assertTrue("${model.name} after translating: '$german'", "Wurst" in german)
+            } finally {
+                transcriber.release()
+            }
+        }
+    }
+
     @Test fun `silence trimmer cuts pauses and keeps the speech`() {
         val modelsDir = System.getenv("PHONE_WHISPER_MODELS_DIR")?.let(::File)
         val wav = System.getenv("PHONE_WHISPER_TEST_WAV")?.let(::File)

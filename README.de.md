@@ -17,13 +17,20 @@ Mit Phone Whisper sprichst du in fast jede App, ohne die Tastatur zu wechseln. T
 **Transkription**
 - **Lokal auf dem Gerät** mit [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx): Parakeet (110M, 0.6B, Ultra), Whisper (Base, Small) und Moonshine. Die Aufnahme verlässt das Handy nie, und der lokale Modus weicht nie auf die Cloud aus.
 - **Cloud** mit OpenAI, [OpenRouter](https://openrouter.ai) (jedes Spracherkennungsmodell dort) oder deinem eigenen **OpenAI-kompatiblen Server** (Groq, ein Whisper-Server auf deinem Rechner). Das Modell ist je Anbieter wählbar, aus der aktuellen Modellliste des Anbieters.
-- **Sprachen**: Parakeet 0.6B und Ultra verstehen 25 europäische Sprachen inklusive Deutsch, Whisper 99 Sprachen. Eine Einstellung **Language** (Standard: automatisch erkennen) legt die Sprache für Whisper und die Cloud fest.
+- **Sprachen**: Parakeet 0.6B und Ultra verstehen 25 europäische Sprachen inklusive Deutsch, Whisper 99 Sprachen. Die Einstellung **Your language** (Standard: automatisch erkennen) legt die gesprochene Sprache für Whisper und die Cloud fest.
 - **Stille abschneiden** mit Silero VAD vor der Transkription: schneller, günstiger und keine erfundenen Sätze bei Stille. Wird keine Sprache erkannt, wird nichts gesendet; „Wiederholen“ sendet die ungekürzte Aufnahme.
 
 **KI-Glättung (optional)**
 - Ein Sprachmodell (OpenAI, OpenRouter oder dein eigener Server) korrigiert Satzzeichen, Grammatik und offensichtliche Erkennungsfehler. Es behält deine Sprache bei und übersetzt nie.
 - **Halte den Button**, um mit Glättung zu diktieren; tippe für ein normales Diktat (Standard). Die Glättung lässt sich auch auf *immer* oder *nie* stellen.
 - Vorlagen: *Simple cleanup* (Standard), *Dev cleanup* (macht aus „command mode …“ Shell-Befehle) oder ein eigener Prompt.
+
+**Übersetzen (optional)**
+- In deiner Sprache sprechen, in einer anderen einfügen. Bis zu 6 Zielsprachen wählst du unter **AI cleanup → Translation**.
+- Den Button **halten**, bis der Ring voll ist: Die Sprachen erscheinen im Halbkreis um ihn herum. **Schieb den Daumen** auf eine (sie leuchtet auf, mit kurzem Vibrieren) und lass los. Während du sprichst, zeigt der Button das Sprachkürzel, z. B. **ES**. Loslassen nahe am Button ist ein normales Diktat mit Glättung.
+- Transkribiert wird immer mit dem Modell aus deinen Einstellungen (etwa Parakeet Ultra oder die Cloud). Das **Modell der KI-Glättung** glättet und übersetzt dann in einem Schritt.
+- **Ohne Glättungsanbieter** wird nur Englisch angeboten: Ein installiertes **Whisper Base oder Small** übersetzt offline, nur für dieses Diktat. Whisper Small übersetzt spürbar besser als Base.
+- Im Halbkreis gibt es außerdem **+** (öffnet die Sprachliste) und **⚙** (öffnet die Einstellungen). Loslassen darauf verwirft die Aufnahme.
 
 **Der Button**
 - Erscheint **nur bei offener Tastatur** (Standard) oder immer. Er lässt sich an beide Bildschirmränder ziehen und bleibt beim Drehen dort.
@@ -32,6 +39,7 @@ Mit Phone Whisper sprichst du in fast jede App, ohne die Tastatur zu wechseln. T
 - Geht etwas schief (kein Netz, falscher Schlüssel, kein Guthaben …), wird er **orange**: Antippen wiederholt dieselbe Aufnahme, das **✕** daneben verwirft sie.
 - Dein Daumen verdeckt den Button, deshalb gibt es Rückmeldung ohne Hinsehen: Ein **Ring, größer als der Button**, wächst beim Halten um ihn herum (violett für KI-Glättung, orange zum Verwerfen; er löst nach 0,8 s aus), und **unterschiedliche Vibrationen** markieren einen normalen Start (Klick), einen Start mit KI-Glättung (Doppelimpuls) und das Verwerfen (langes Brummen). Optional **leuchten die Bildschirmränder** während der Aufnahme rot oder violett (*Button & insertion → Glowing screen edge*).
 - Meldungen erscheinen über dem Daumen, oberhalb des Rings.
+- Eine **Kachel in den Schnelleinstellungen** (im Bearbeiten-Modus der Benachrichtigungsleiste *Phone Whisper* hinzufügen) öffnet die Einstellungen von überall; das ⚙ im Halbkreis ebenso.
 - Schaltest du den Bildschirm während der Aufnahme aus, wird sie abgebrochen.
 
 **Text einfügen**
@@ -89,7 +97,7 @@ Die **Status**-Zeile oben zeigt, was noch fehlt, zum Beispiel „Setup required:
 
 ## Einstellungen
 
-Die Hauptseite enthält Status, Einrichtung, Transkription (Modus, Sprache, Modelle oder Cloud-Anbieter) und KI-Glättung (Modus, Dienst, Modell, Prompt). Alles Weitere liegt unter **More settings**, zusammen mit dem Einrichtungsassistenten:
+Die Hauptseite enthält Status, Einrichtung, Transkription (Modus, deine Sprache, Modelle oder Cloud-Anbieter) und KI-Glättung (Modus, Übersetzungssprachen, Dienst, Modell, Prompt). Alles Weitere liegt unter **More settings**, zusammen mit dem Einrichtungsassistenten:
 
 | Seite | Einstellungen |
 |---|---|
@@ -110,7 +118,7 @@ Ganz unten zeigt **About** die installierte Version.
 | Parakeet 0.6B | 671 MB | 25 europäische Sprachen | Beste Qualität |
 | Parakeet Ultra | 630 MB | 25 europäische Sprachen | Am genauesten |
 
-Tippe auf ein Modell, um es zu laden, noch einmal, um es auszuwählen, und auf ✕, um es zu löschen. Parakeet erkennt die gesprochene Sprache selbst; Whisper nutzt die Einstellung **Language**. Das rein englische Whisper Base früherer Versionen bleibt nutzbar, solange es installiert ist, wird aber nicht mehr angeboten.
+Tippe auf ein Modell, um es zu laden, noch einmal, um es auszuwählen, und auf ✕, um es zu löschen. Parakeet erkennt die gesprochene Sprache selbst; Whisper nutzt die Einstellung **Your language**. Das rein englische Whisper Base früherer Versionen bleibt nutzbar, solange es installiert ist, wird aber nicht mehr angeboten.
 
 Die meisten Modelle werden als einzelne Dateien von Hugging Face geladen (die sherpa-onnx-Spiegel und [mldecode/parakeet-ultra-onnx-int8](https://huggingface.co/mldecode/parakeet-ultra-onnx-int8)), auf einen festen Commit gepinnt. Parakeet 110M kommt aus dem Release-Archiv von sherpa-onnx. Die Modelle liegen im App-Speicher unter `/data/data/com.kafkasl.phonewhisper/files/models/`.
 
@@ -229,3 +237,4 @@ Apache License 2.0, siehe [LICENSE](LICENSE). Urheberrecht am ursprünglichen Co
 11. **Einrichtungsassistent und Halten für Glättung**: ein Assistent beim ersten Start für Berechtigungen, Modus, Modell oder Anbieter, Glättung und die Bedienungshilfe (mit dem Hinweis, den Google Play verlangt); Halten des Buttons diktiert mit KI-Glättung
 12. **Rückmeldung unter dem Daumen**: ein Halte-Ring, größer als der Button, der in der Farbe des Modus wächst; unterschiedliche Vibrationen; ein ✕ neben dem orangen Button zum Verwerfen; ein optional leuchtender Bildschirmrand während der Aufnahme; Meldungen über dem Daumen
 13. **Version 1.0.0**: Dokumentation auf Englisch und Deutsch, Changelog, Leitfaden zum Mitmachen mit Aufruf an Übersetzer, eine About-Zeile mit der Version und das erste Release mit dem Release-Schlüssel dieses Forks
+14. **Übersetzen**: Button halten und auf eine Zielsprache im Halbkreis schieben; das Glättungsmodell übersetzt, ohne Anbieter Whisper offline ins Englische; + und ⚙ im Halbkreis sowie eine Kachel in den Schnelleinstellungen öffnen die Einstellungen

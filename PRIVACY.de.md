@@ -24,7 +24,7 @@ Im Cloud-Modus wird die Aufnahme direkt vom Gerät an die Transkriptions-API des
 
 Öffnest du die Modellauswahl, lädt die App die Liste der verfügbaren Modelle vom Anbieter. Bei OpenAI und einem eigenen Server enthält diese Anfrage deinen API-Schlüssel; Audio oder Text werden dabei nicht gesendet.
 
-Ist die optionale Glättung aktiv, wird zusätzlich der transkribierte Text direkt vom Gerät an die Chat-API des gewählten Anbieters gesendet, um Satzzeichen, Groß- und Kleinschreibung und Verständlichkeit zu verbessern.
+Ist die optionale Glättung aktiv, wird zusätzlich der transkribierte Text direkt vom Gerät an die Chat-API des gewählten Anbieters gesendet, um Satzzeichen, Groß- und Kleinschreibung und Verständlichkeit zu verbessern. Wählst du eine Übersetzungssprache, übersetzt derselbe Anbieter den Text auch. Ohne Glättungsanbieter läuft die Übersetzung ins Englische auf dem Gerät mit einem Whisper-Modell.
 
 Die Adresse eines eigenen Servers darf unverschlüsseltes http verwenden, für einen Server im eigenen Netz. So gesendete Aufnahmen kann jeder in diesem Netz mitlesen.
 

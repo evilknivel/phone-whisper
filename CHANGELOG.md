@@ -2,6 +2,21 @@
 
 All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the last version of the [original app](https://github.com/kafkasl/phone-whisper) by Pol Alvarez.
 
+## Unreleased
+
+### Translation
+- Hold the button, then slide your thumb onto a target language on the arc that opens around it, and let go: the dictation is transcribed with your selected model and translated by the AI cleanup model. The button shows the language code while you speak.
+- Up to 6 target languages under AI cleanup → Translation; your own language is left off the arc.
+- Without a cleanup provider, an installed multilingual Whisper (Base or Small) translates into English offline, for that dictation only.
+- The *Language* setting is now *Your language* and is also used as the source language when translating.
+
+### Settings shortcuts
+- **+** on the arc opens the translation languages, **⚙** the settings.
+- New Quick Settings tile that opens the settings.
+
+### Button
+- The hold ring also shows when cleanup is set to *never* (red).
+
 ## 1.0.0 – 2026-10-25
 
 First stable release of this fork. Compared with the original 0.3.0:

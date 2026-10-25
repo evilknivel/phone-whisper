@@ -10,10 +10,20 @@ import java.io.File
  * Models are loaded from the app's files/models/ dir. Not thread-safe: callers must not
  * [release] while [transcribe] is running.
  */
-class LocalTranscriber private constructor(private val recognizer: OfflineRecognizer) {
+class LocalTranscriber private constructor(
+    private val recognizer: OfflineRecognizer,
+    private val config: OfflineRecognizerConfig,
+) {
+    /** Only Whisper can translate, and only into English. */
+    val canTranslateToEnglish get() = isMultilingualWhisper(config)
 
-    /** Transcribe raw PCM float samples. Blocking — call from background thread. */
-    fun transcribe(samples: FloatArray, sampleRate: Int = 16000): String {
+    /**
+     * Transcribe raw PCM float samples. Blocking — call from background thread. With
+     * [translateToEnglish], a multilingual Whisper model translates instead of transcribing.
+     */
+    fun transcribe(samples: FloatArray, sampleRate: Int = 16000, translateToEnglish: Boolean = false): String {
+        val translate = translateToEnglish && canTranslateToEnglish
+        if (translate) recognizer.setConfig(withTask("translate"))
         val stream = recognizer.createStream()
         try {
             stream.acceptWaveform(samples, sampleRate)
@@ -21,8 +31,13 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
             return recognizer.getResult(stream).text.trim()
         } finally {
             stream.release()
+            if (translate) recognizer.setConfig(config)
         }
     }
+
+    private fun withTask(task: String) = config.copy(
+        modelConfig = config.modelConfig.copy(whisper = config.modelConfig.whisper.copy(task = task))
+    )
 
     /** Free the native recognizer. A model like Parakeet Ultra holds several hundred MB. */
     fun release() = recognizer.release()
@@ -75,11 +90,24 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
             return try {
                 val recognizer = OfflineRecognizer(assetManager = null, config = config)
                 Log.i(TAG, "Loaded model: ${modelDir.name} ($numThreads threads)")
-                LocalTranscriber(recognizer)
+                LocalTranscriber(recognizer, config)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load model: ${e.message}")
                 null
             }
+        }
+
+        /** Installed multilingual Whisper models, the larger (better translating) first. */
+        fun whisperTranslators(ctx: Context): List<String> =
+            availableModels(ctx)
+                .filter { name -> detectModelConfig(File(modelsDir(ctx), name), 1)?.let(::isMultilingualWhisper) == true }
+                .sortedByDescending { if (it.contains("small")) 1 else 0 }
+
+        /** English-only Whisper models (`base.en`) cannot translate. */
+        fun isMultilingualWhisper(config: OfflineRecognizerConfig): Boolean {
+            val encoder = config.modelConfig.whisper.encoder
+            val file = File(encoder)
+            return encoder.isNotEmpty() && !file.name.contains(".en-") && file.parentFile?.name?.endsWith(".en") != true
         }
 
         /** Auto-detect model type from files present in the directory. */

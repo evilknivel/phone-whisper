@@ -48,6 +48,7 @@ import com.kafkasl.phonewhisper.Prefs.micSource
 import com.kafkasl.phonewhisper.Prefs.numThreads
 import com.kafkasl.phonewhisper.Prefs.overlayKeyboardOnly
 import com.kafkasl.phonewhisper.Prefs.preserveClipboard
+import com.kafkasl.phonewhisper.Prefs.translationLanguages
 import com.kafkasl.phonewhisper.Prefs.trimSilence
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -103,6 +104,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var overlayView: FrameLayout? = null
     private var button: ImageView? = null
     private var levelBars: LevelBarsView? = null
+    private var languageBadge: TextView? = null
     private var spinner: ProgressBar? = null
     private var feedbackView: TextView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
@@ -135,6 +137,20 @@ class WhisperAccessibilityService : AccessibilityService() {
      * "always" mode, and in "hold" mode when the recording was started by holding the button.
      */
     @Volatile private var cleanupThisDictation = false
+
+    /** Target language of the current dictation (and its retry), picked on the arc; null = no translation. */
+    @Volatile private var translateTo: String? = null
+
+    /** What a chip on the arc does. */
+    private sealed class ArcChoice {
+        data class Language(val code: String) : ArcChoice()
+        object AddLanguage : ArcChoice()
+        object Settings : ArcChoice()
+    }
+
+    private var radialMenu: RadialMenuView? = null
+    private var radialParams: WindowManager.LayoutParams? = null
+    private var arcChoices: List<ArcChoice> = emptyList()
 
     // Local transcription engine. Loading, releasing and local transcription all run on
     // [modelExecutor], one at a time, so a model is never released while it transcribes.
@@ -297,10 +313,24 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         val bars = LevelBarsView(this).apply { visibility = View.GONE }
 
+        // The target language of a translating dictation, at the bottom of the button.
+        val badge = TextView(this).apply {
+            textSize = 9f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding((4 * dp).toInt(), 0, (4 * dp).toInt(), 0)
+            background = pill(COLOR_FEEDBACK_BG)
+            visibility = View.GONE
+        }
+
         val overlay = FrameLayout(this).apply {
             addView(ring, FrameLayout.LayoutParams(ringSize, ringSize, Gravity.CENTER))
             addView(img, FrameLayout.LayoutParams(buttonSize, buttonSize, Gravity.CENTER))
             addView(bars, FrameLayout.LayoutParams((BARS_DP * dp).toInt(), (BARS_DP * dp).toInt(), Gravity.CENTER))
+            addView(badge, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            ))
         }
 
         val params = WindowManager.LayoutParams(
@@ -333,7 +363,10 @@ class WhisperAccessibilityService : AccessibilityService() {
                         handler.removeCallbacks(longPress)
                         stopHoldRing()
                     }
-                    if (longPressed) return@setOnTouchListener true
+                    if (longPressed) {
+                        trackArc(ev.rawX - touchX, ev.rawY - touchY)
+                        return@setOnTouchListener true
+                    }
                     val (_, screenH) = screenSize
                     params.x = startX + (ev.rawX - touchX).toInt()
                     params.y = (startY + (ev.rawY - touchY).toInt()).coerceIn(0, maxOf(0, screenH - ringSize))
@@ -346,8 +379,10 @@ class WhisperAccessibilityService : AccessibilityService() {
                     handler.removeCallbacks(longPress)
                     stopHoldRing()
                     val moved = abs(ev.rawX - touchX) + abs(ev.rawY - touchY)
-                    if (longPressed || ev.action == MotionEvent.ACTION_CANCEL) {
-                        // Handled when the long press fired.
+                    if (longPressed) {
+                        releaseArc(if (ev.action == MotionEvent.ACTION_UP) radialMenu?.highlighted ?: -1 else -1)
+                    } else if (ev.action == MotionEvent.ACTION_CANCEL) {
+                        // Nothing was started.
                     } else if (moved < TAP_THRESHOLD_DP * dp) {
                         onTap()
                     } else {
@@ -384,6 +419,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         overlayView = overlay
         button = img
         levelBars = bars
+        languageBadge = badge
         spinner = ring
         feedbackView = feedback
         layoutParams = params
@@ -440,12 +476,23 @@ class WhisperAccessibilityService : AccessibilityService() {
             setFitInsetsTypes(0)
         }
 
+        val menuSize = (RadialMenuView.SIZE_DP * dp).toInt()
+        val menu = RadialMenuView(this).apply {
+            highlightColor = COLOR_RECORDING_CLEANUP
+            visibility = View.GONE
+        }
+        val menuParams = WindowManager.LayoutParams(
+            menuSize, menuSize, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, untouchable, PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+
         holdRing = ring; holdRingParams = ringParams
         discardView = discard; discardParams = discardLp
         edgeGlow = glow
+        radialMenu = menu; radialParams = menuParams
         positionSatellites()
         wm.addView(glow, glowParams)
         wm.addView(ring, ringParams)
+        wm.addView(menu, menuParams)
         wm.addView(discard, discardLp)
     }
 
@@ -455,7 +502,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         val buttonSize = (RING_DP * dp).toInt()
         val cx = bubble.x + buttonSize / 2
         val cy = bubble.y + buttonSize / 2
-        holdRingParams?.let { p ->
+        for (p in listOfNotNull(holdRingParams, radialParams)) {
             p.x = cx - p.width / 2
             p.y = cy - p.height / 2
         }
@@ -470,19 +517,20 @@ class WhisperAccessibilityService : AccessibilityService() {
         positionSatellites()
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         holdRing?.let { v -> holdRingParams?.let { wm.updateViewLayout(v, it) } }
+        radialMenu?.let { v -> radialParams?.let { wm.updateViewLayout(v, it) } }
         discardView?.let { v -> discardParams?.let { wm.updateViewLayout(v, it) } }
     }
 
     /**
      * Grow the ring while the button is held, in the color of what the hold will do: purple for a
-     * dictation with AI cleanup, orange for discarding a failed recording. Nothing when holding
-     * does nothing special. It starts after a short delay so taps don't flash it.
+     * dictation with AI cleanup (red without), orange for discarding a failed recording. Nothing
+     * while recording or transcribing. It starts after a short delay so taps don't flash it.
      */
     private fun startHoldRing() {
         val ring = holdRing ?: return
-        ring.color = when {
-            state == State.IDLE && prefs().cleanupMode() != Prefs.CLEANUP_NEVER -> COLOR_RECORDING_CLEANUP
-            state == State.RETRY -> COLOR_RETRY
+        ring.color = when (state) {
+            State.IDLE -> if (prefs().cleanupMode() != Prefs.CLEANUP_NEVER) COLOR_RECORDING_CLEANUP else COLOR_RECORDING
+            State.RETRY -> COLOR_RETRY
             else -> return
         }
         val total = HOLD_MS
@@ -589,8 +637,10 @@ class WhisperAccessibilityService : AccessibilityService() {
             feedbackView = null
         }
         holdRingAnimator?.cancel()
-        listOf(holdRing, discardView, edgeGlow).forEach { it?.let(wm::removeView) }
+        listOf(holdRing, radialMenu, discardView, edgeGlow).forEach { it?.let(wm::removeView) }
         holdRing = null; holdRingParams = null
+        radialMenu = null; radialParams = null
+        languageBadge = null
         discardView = null; discardParams = null
         edgeGlow = null
         button = null
@@ -679,6 +729,11 @@ class WhisperAccessibilityService : AccessibilityService() {
             visibility = if (state == State.RECORDING) View.VISIBLE else View.GONE
         }
         spinner?.visibility = if (state == State.TRANSCRIBING) View.VISIBLE else View.GONE
+        languageBadge?.apply {
+            val target = translateTo
+            visibility = if (target != null && state != State.IDLE) View.VISIBLE else View.GONE
+            text = target?.uppercase().orEmpty()
+        }
         setDiscardVisible(state == State.RETRY && overlayView?.visibility == View.VISIBLE)
         edgeGlow?.apply {
             visibility = if (state == State.RECORDING && prefs().edgeGlow()) View.VISIBLE else View.GONE
@@ -696,18 +751,107 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Holding the button starts a dictation with AI cleanup (unless cleanup is set to "never"). */
+    /**
+     * Holding the button starts a dictation with AI cleanup (unless cleanup is set to "never") and
+     * opens the arc: sliding the thumb onto a language translates the dictation, "+" and the gear
+     * open the settings.
+     */
     private fun onLongPress() {
         when (state) {
             State.IDLE -> {
                 val cleanup = prefs().cleanupMode() != Prefs.CLEANUP_NEVER
                 startRecording(cleanup, held = true)
-                if (cleanup) showFeedback("Recording with AI cleanup", 1500)
+                if (state == State.RECORDING) showArc()
             }
             // Kept as a shortcut; the visible way is the ✕ next to the button.
             State.RETRY -> discardFailed()
             else -> onTap()
         }
+    }
+
+    // --- Arc of choices around the held button ---
+
+    /**
+     * Languages that can be offered: all selected ones with a cleanup provider, otherwise only
+     * English (an installed Whisper translates it; without one, picking it explains what is missing).
+     */
+    private fun showArc() {
+        val menu = radialMenu ?: return
+        val aiConfigured = prefs().postProcessingTarget().isConfigured
+        val languages = Translation.arcLanguages(prefs().translationLanguages(), prefs().language())
+            .filter { aiConfigured || it == "en" }
+        arcChoices = languages.map { ArcChoice.Language(it) } + ArcChoice.AddLanguage + ArcChoice.Settings
+        menu.labels = arcChoices.map {
+            when (it) {
+                is ArcChoice.Language -> it.code.uppercase()
+                ArcChoice.AddLanguage -> "+"
+                ArcChoice.Settings -> "⚙"
+            }
+        }
+        val bubble = layoutParams ?: return
+        val (_, screenH) = screenSize
+        val cy = bubble.y + (RING_DP * dp) / 2
+        val reach = menu.radius + RadialMenuView.CHIP_DP * dp
+        val tilt = RadialMenu.tilt(roomAbove = cy, roomBelow = screenH - cy, reach = reach)
+        menu.angles = RadialMenu.angles(arcChoices.size, onRightEdge, tilt)
+        menu.highlighted = -1
+        menu.alpha = 0f
+        menu.visibility = View.VISIBLE
+        menu.animate().alpha(1f).setDuration(120).start()
+    }
+
+    /** Highlight the chip under the thumb; ([dx], [dy]) is its offset from where the hold started. */
+    private fun trackArc(dx: Float, dy: Float) {
+        val menu = radialMenu?.takeIf { it.visibility == View.VISIBLE } ?: return
+        val index = RadialMenu.hit(dx, dy, menu.angles, deadZone = menu.radius * 0.5f)
+        if (index != menu.highlighted) {
+            menu.highlighted = index
+            if (index >= 0) vibrate(Haptic.TICK)
+        }
+    }
+
+    /** The thumb was lifted over chip [index] (-1: near the button, a dictation without translation). */
+    private fun releaseArc(index: Int) {
+        val menu = radialMenu ?: return
+        if (menu.visibility != View.VISIBLE) return
+        menu.animate().cancel()
+        menu.visibility = View.GONE
+        val choice = arcChoices.getOrNull(index)
+        arcChoices = emptyList()
+        when (choice) {
+            null -> if (cleanupThisDictation && state == State.RECORDING) showFeedback("Recording with AI cleanup", 1500)
+            is ArcChoice.Language -> pickTranslation(choice.code)
+            ArcChoice.AddLanguage -> openSettings(TranslationSettingsActivity::class.java)
+            ArcChoice.Settings -> openSettings(MainActivity::class.java)
+        }
+    }
+
+    private fun pickTranslation(code: String) {
+        if (state != State.RECORDING) return
+        val method = Translation.method(
+            code,
+            aiConfigured = prefs().postProcessingTarget().isConfigured,
+            whisperInstalled = LocalTranscriber.whisperTranslators(this).isNotEmpty(),
+        )
+        if (method == null) {
+            showFeedback("Translating needs an AI cleanup provider, or Whisper Base or Small for English", 4000)
+            return
+        }
+        translateTo = code
+        applyAppearance()
+        val via = if (method == Translation.Method.WHISPER) " (Whisper, offline)" else ""
+        showFeedback("Translating into ${Translation.languageName(code)}$via", 2000)
+    }
+
+    /** Opening the settings from the arc drops the recording that the hold started. */
+    private fun openSettings(screen: Class<*>) {
+        if (state == State.RECORDING) {
+            state = State.TRANSCRIBING
+            releaseRecorder()
+            pcmStream = null
+            enter(State.IDLE)
+        }
+        startActivity(Intent(this, screen).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
     }
 
     private fun discardFailed() {
@@ -754,6 +898,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         pcmStream = stream
         failedPcm = null
         cleanupThisDictation = cleanup
+        translateTo = null
         enter(State.RECORDING)
         vibrate(if (held && cleanup) Haptic.CLEANUP else Haptic.CLICK)
 
@@ -834,6 +979,12 @@ class WhisperAccessibilityService : AccessibilityService() {
             samples = trimmed
         }
 
+        if (whisperTranslates()) {
+            showFeedback("Translating with Whisper...", 1500)
+            modelExecutor.execute { translateWithWhisper(pcm, samples) }
+            return
+        }
+
         if (!prefs().getBoolean("use_local", true)) { transcribeApi(pcm, samples, trimmed = trim); return }
 
         if (localTranscriber == null && !modelLoading) {
@@ -861,6 +1012,45 @@ class WhisperAccessibilityService : AccessibilityService() {
             handleTranscriptionResult(text)
         } catch (e: Exception) {
             Log.e(TAG, "Local transcription failed", e)
+            fail(pcm, ErrorMessages.local(e.message))
+        }
+    }
+
+    /** English as target and no cleanup provider: an installed Whisper translates (see [Translation]). */
+    private fun whisperTranslates(): Boolean {
+        val target = translateTo ?: return false
+        return Translation.method(
+            target, prefs().postProcessingTarget().isConfigured,
+            LocalTranscriber.whisperTranslators(this).isNotEmpty(),
+        ) == Translation.Method.WHISPER
+    }
+
+    /**
+     * Runs on [modelExecutor]. The selected model translates if it is a multilingual Whisper;
+     * otherwise an installed Whisper is loaded for this dictation only, in place of the selected
+     * model (never both in memory), which is loaded again afterwards.
+     */
+    private fun translateWithWhisper(pcm: ByteArray, samples: FloatArray) {
+        try {
+            val text = synchronized(transcriberLock) {
+                localTranscriber?.takeIf { it.canTranslateToEnglish }
+                    ?.let { return@synchronized it.transcribe(samples, SAMPLE_RATE, translateToEnglish = true) }
+                val name = LocalTranscriber.whisperTranslators(this).firstOrNull()
+                    ?: return fail(pcm, "No Whisper model for offline translation")
+                localTranscriber?.release()
+                localTranscriber = null
+                val whisper = LocalTranscriber.create(File(LocalTranscriber.modelsDir(this), name), prefs().numThreads(), prefs().language())
+                    ?: return fail(pcm, "Could not load Whisper for translation")
+                try {
+                    whisper.transcribe(samples, SAMPLE_RATE, translateToEnglish = true)
+                } finally {
+                    whisper.release()
+                    if (prefs().getBoolean("use_local", true)) localTranscriber = loadSelectedModel()
+                }
+            }
+            handleTranscriptionResult(text, translated = true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Whisper translation failed", e)
             fail(pcm, ErrorMessages.local(e.message))
         }
     }
@@ -931,12 +1121,15 @@ class WhisperAccessibilityService : AccessibilityService() {
         message?.let { showFeedback(it) }
     }
 
-    private fun handleTranscriptionResult(text: String?) {
+    /** [translated]: Whisper already translated it; there is no cleanup provider to do more. */
+    private fun handleTranscriptionResult(text: String?, translated: Boolean = false) {
         if (text.isNullOrBlank()) { finish("No speech detected"); return }
 
         val target = prefs().postProcessingTarget()
+        val language = translateTo?.takeUnless { translated }
 
-        if (!cleanupThisDictation) {
+        if (language != null) { translate(text, language, target); return }
+        if (!cleanupThisDictation || translated) {
             handler.post { injectText(text); finish() }
             return
         }
@@ -948,9 +1141,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             return
         }
 
-        val stored = prefs().getString("post_processing_prompt", null)
-        val prompt = PostProcessor.migratePrompt(stored) ?: PostProcessor.DEFAULT_PROMPT
-        PostProcessor.process(text, prompt, target) { result ->
+        PostProcessor.process(text, currentCleanupPrompt(), target) { result ->
             handler.post {
                 if (result.text != null && result.text.isNotBlank()) {
                     injectText(result.text)
@@ -962,8 +1153,33 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** The chat model cleans up and translates in one request; a failure inserts the original text. */
+    private fun translate(text: String, language: String, target: CloudTarget) {
+        if (!target.isConfigured) {
+            handler.post {
+                injectText(text, feedback = "Translation needs an AI cleanup provider. Original text used.")
+                finish()
+            }
+            return
+        }
+        val prompt = Translation.prompt(currentCleanupPrompt(), prefs().language(), language)
+        PostProcessor.process(text, prompt, target) { result ->
+            handler.post {
+                if (result.text != null && result.text.isNotBlank()) {
+                    injectText(result.text)
+                } else {
+                    injectText(text, feedback = "Translation failed: ${ErrorMessages.cloud(result.error, null)}. Original text used.")
+                }
+                finish()
+            }
+        }
+    }
+
+    private fun currentCleanupPrompt(): String =
+        PostProcessor.migratePrompt(prefs().getString("post_processing_prompt", null)) ?: PostProcessor.DEFAULT_PROMPT
+
     /** Distinct patterns, so the thumb that covers the button still feels what happened. */
-    private enum class Haptic { CLICK, CLEANUP, DISCARD }
+    private enum class Haptic { CLICK, CLEANUP, DISCARD, TICK }
 
     private fun vibrate(kind: Haptic = Haptic.CLICK) {
         if (!prefs().haptics()) return
@@ -976,6 +1192,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             Haptic.CLICK -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
             Haptic.CLEANUP -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
             Haptic.DISCARD -> VibrationEffect.createOneShot(180, VibrationEffect.DEFAULT_AMPLITUDE)
+            Haptic.TICK -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
         })
     }
 
