@@ -1,5 +1,9 @@
 # Privacy Policy for Phone Whisper
 
+**English** | [Deutsch](PRIVACY.de.md)
+
+This policy covers the fork at [evilknivel/phone-whisper](https://github.com/evilknivel/phone-whisper), version 1.0.0 and later.
+
 Phone Whisper is an Android dictation app that records speech, transcribes it, and inserts the result into text fields across apps.
 
 ## Data handling
@@ -34,6 +38,8 @@ I do not operate a relay server for these requests.
 
 ## Accessibility Service
 
+Before you are sent to the system's accessibility settings, the app explains what the service accesses and asks for your agreement.
+
 Phone Whisper uses Android Accessibility Service only to identify the currently focused text field and insert dictated text after you explicitly interact with the floating overlay button, and to see whether a keyboard is open so the button can be shown only then. It does not log the contents of text fields.
 
 Inserted text is copied to the clipboard and pasted, unless you turn on "Keep my clipboard". Copied transcripts are marked as sensitive: Android then hides their content in the clipboard preview, and keyboards that honor the flag don't show them as suggestions.
@@ -48,4 +54,4 @@ Third-party services you choose to use, such as OpenAI or OpenRouter, may proces
 
 ## Contact
 
-For questions about privacy, contact: pol.avms@gmail.com
+For questions about privacy in this fork, open an issue at [github.com/evilknivel/phone-whisper/issues](https://github.com/evilknivel/phone-whisper/issues). For the original app by Pol Alvarez, see [kafkasl/phone-whisper](https://github.com/kafkasl/phone-whisper).

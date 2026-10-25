@@ -4,6 +4,8 @@
 
 # Phone Whisper
 
+**English** | [Deutsch](README.de.md)
+
 Push-to-talk dictation for Android.
 
 Phone Whisper lets you speak into most apps without switching keyboards. Tap the floating button, speak, tap again, and your text is inserted into the currently focused text field when the app exposes a standard Android input field.
@@ -26,9 +28,10 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 **The button**
 - Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge and stays there across rotation.
 - **Tap**: dictate (red while recording). **Hold**: dictate with AI cleanup (purple while recording).
-- Level bars while recording, a spinner while transcribing, and a short vibration on start and stop.
+- Level bars while recording and a spinner while transcribing.
 - If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, or tap the **✕** next to it to discard it.
 - Your thumb covers the button, so the app also tells you without looking: a **ring larger than the button** grows around it while you hold it (purple for AI cleanup, orange for discarding; it triggers after 0.8 s), and **different vibrations** mark a normal start (click), a start with AI cleanup (double pulse) and discarding (long buzz). Optionally the **screen edges glow** red or purple while recording (*Button & insertion → Glowing screen edge*).
+- Messages appear above your thumb, above the ring.
 - Turning the screen off while recording cancels the recording.
 
 **Inserting text**
@@ -45,7 +48,9 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 
 ### Download the APK
 
-Grab the latest APK from [GitHub Releases](https://github.com/evilknivel/phone-whisper/releases), open it on your phone and install it.
+Grab the latest APK from [GitHub Releases](https://github.com/evilknivel/phone-whisper/releases), open it on your phone and install it. Release APKs are signed with this fork's release key, so later versions install over earlier ones.
+
+**Coming from a 0.x beta?** The betas were signed with a development key. Android only installs an update signed with the same key, so uninstall the beta once before installing 1.0.0. Your settings and downloaded models are removed with it.
 
 Android blocks the accessibility permission for apps installed from a file ("restricted settings"). If enabling the service shows "App was denied access": open **Settings → Apps → Phone Whisper → ⋮ → Allow restricted settings**, then enable the service again.
 
@@ -59,6 +64,14 @@ make build
 ```
 
 The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. With a phone connected over ADB, `make adb-install` builds and installs it (no restricted-settings prompt this way).
+
+A signed release APK needs your own keystore:
+
+```bash
+RELEASE_KEYSTORE_FILE=/path/to/release.keystore RELEASE_KEYSTORE_PASSWORD=... \
+RELEASE_KEY_ALIAS=... RELEASE_KEY_PASSWORD=... ./gradlew assembleRelease
+# → app/build/outputs/apk/release/app-release.apk
+```
 
 ## Setup
 
@@ -83,6 +96,8 @@ The main screen holds status, setup, transcription (mode, language, models or cl
 | **API keys** | OpenAI and OpenRouter keys; address and key of a custom server. Keys are entered in a masked field that never shows the saved key and can't be screenshotted. |
 | **Button & insertion** | Show the button only with a keyboard or always; vibration; glowing screen edge while recording (off by default); cancel on screen off; *Keep my clipboard* |
 | **Advanced** | CPU threads for local models (default 4); free model memory when idle (never, 2–30 min, default 5); trim silence (default on); microphone source (speech recognition or standard microphone) |
+
+At the very bottom, **About** shows the installed version.
 
 ## Local models
 
@@ -121,7 +136,7 @@ It does **not** replace your keyboard, does **not** run background automation, a
 - **Cloud mode**: audio goes directly from your device to the provider you pick, with your own API key. If no speech is detected, nothing is sent unless you tap retry.
 - **Cleanup**: the transcript goes directly to the chat API of the provider you pick.
 
-There is no backend. Full policy: [PRIVACY.md](PRIVACY.md)
+There is no backend. Full policy: [PRIVACY.md](PRIVACY.md) ([Deutsch](PRIVACY.de.md))
 
 ## App compatibility
 
@@ -141,7 +156,11 @@ make adb-install       # build + install via ADB
 make clean
 ```
 
-CI runs the unit tests and builds the APK on every push. Pushing a tag like `v0.5.0` builds a release APK and attaches it to a GitHub release (pre-release for tags with a `-`). To sign releases with a fixed key, set the secrets described in `.github/workflows/release.yml`. [CLAUDE.md](CLAUDE.md) describes the architecture.
+CI runs the unit tests and builds the APK on every push. Pushing a tag like `v1.0.0` builds a release APK and attaches it to a GitHub release (pre-release for tags with a `-`). To sign releases with a fixed key, set the secrets described in `.github/workflows/release.yml`. [CLAUDE.md](CLAUDE.md) describes the architecture, [CHANGELOG.md](CHANGELOG.md) lists the changes per version, and [CONTRIBUTING.md](CONTRIBUTING.md) explains how to help.
+
+## Help translate
+
+The app is in English only so far, and its texts are still written directly in the Kotlin code. **Translators and Android developers are very welcome:** the first step is moving the texts into `res/values/strings.xml`, after which every language is just one more file. The documentation already exists in English and German. See [CONTRIBUTING.md](CONTRIBUTING.md#translations) for how to start.
 
 ## Current limitations
 
@@ -149,6 +168,7 @@ CI runs the unit tests and builds the APK on every push. Pushing a tag like `v0.
 - Some apps block paste or text injection, or use custom input surfaces
 - Good local models are large (130–670 MB)
 - Cloud mode requires your own API key (or your own server)
+- The app's interface is English only (see [Help translate](#help-translate))
 
 ## Credits
 
@@ -207,4 +227,5 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 9. **Languages**: language setting for Whisper and the cloud, multilingual Whisper Base and Whisper Small (Whisper had translated German into English with sherpa-onnx's default), complete endings for Whisper Base
 10. **Documentation and credits**: complete README, website and privacy policy; credits for the original author and the pull request authors
 11. **Setup assistant and hold-to-clean-up**: a first-run assistant for permissions, mode, model or provider, cleanup and the accessibility service (with the disclosure Google Play asks for); holding the button dictates with AI cleanup
-12. **Feedback under the thumb**: a hold ring larger than the button, distinct vibrations, a ✕ next to the orange button to discard, an optional glowing screen edge while recording, and messages shown above the thumb
+12. **Feedback under the thumb**: a hold ring larger than the button, growing in the color of the mode; distinct vibrations; a ✕ next to the orange button to discard; an optional glowing screen edge while recording; messages shown above the thumb
+13. **Version 1.0.0**: documentation in English and German, changelog, contribution guide with a call for translators, an About row with the version, and the first release signed with this fork's release key

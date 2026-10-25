@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -143,6 +144,9 @@ class MainActivity : SettingsScreen() {
             addView(navRow("API keys", "OpenAI, OpenRouter and custom server", ApiKeysActivity::class.java))
             addView(navRow("Button & insertion", "When the button shows, vibration, clipboard", ButtonSettingsActivity::class.java))
             addView(navRow("Advanced", "CPU threads, memory, silence trimming, microphone", AdvancedSettingsActivity::class.java))
+            addView(settingsRow("About", "Phone Whisper ${appVersion()} · fork of kafkasl/phone-whisper") {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(REPO_URL)))
+            })
         }
 
         if (!hasPerm(Manifest.permission.RECORD_AUDIO)) {
@@ -573,4 +577,11 @@ class MainActivity : SettingsScreen() {
             prompt = customPrompt()
         )
     )
+
+    private fun appVersion(): String =
+        packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+
+    companion object {
+        private const val REPO_URL = "https://github.com/evilknivel/phone-whisper"
+    }
 }
