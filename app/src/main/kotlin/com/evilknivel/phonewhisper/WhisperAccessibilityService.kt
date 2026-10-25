@@ -12,6 +12,7 @@ import android.content.SharedPreferences
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -29,6 +30,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -195,11 +197,27 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private val dp get() = resources.displayMetrics.density
 
-    private val screenSize: Pair<Int, Int>
+    /**
+     * The screen without the status bar, the navigation bar (wherever it sits: at the bottom, or
+     * at the side in landscape) and display cutouts. The button and its messages stay inside it,
+     * so they never cover the system's back, home and recents buttons.
+     */
+    private val safeArea: Rect
         get() {
-            val bounds = (getSystemService(WINDOW_SERVICE) as WindowManager).currentWindowMetrics.bounds
-            return bounds.width() to bounds.height()
+            val metrics = (getSystemService(WINDOW_SERVICE) as WindowManager).currentWindowMetrics
+            val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+            )
+            return Rect(metrics.bounds).apply {
+                left += insets.left; top += insets.top; right -= insets.right; bottom -= insets.bottom
+            }
         }
+
+    /** Overlay windows are placed in screen coordinates, the same ones [safeArea] uses. */
+    private fun WindowManager.LayoutParams.inScreenCoordinates() = apply {
+        flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        setFitInsetsTypes(0)
+    }
 
     override fun onServiceConnected() {
         instance = this
@@ -340,7 +358,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-        }
+        }.inScreenCoordinates()
 
         var startX = 0; var startY = 0
         var touchX = 0f; var touchY = 0f
@@ -367,9 +385,9 @@ class WhisperAccessibilityService : AccessibilityService() {
                         trackArc(ev.rawX - touchX, ev.rawY - touchY)
                         return@setOnTouchListener true
                     }
-                    val (_, screenH) = screenSize
+                    val safe = safeArea
                     params.x = startX + (ev.rawX - touchX).toInt()
-                    params.y = (startY + (ev.rawY - touchY).toInt()).coerceIn(0, maxOf(0, screenH - ringSize))
+                    params.y = (startY + (ev.rawY - touchY).toInt()).coerceIn(safe.top, maxOf(safe.top, safe.bottom - ringSize))
                     wm.updateViewLayout(v, params)
                     updateFeedbackPosition()
                     updateSatellitePositions()
@@ -386,9 +404,9 @@ class WhisperAccessibilityService : AccessibilityService() {
                     } else if (moved < TAP_THRESHOLD_DP * dp) {
                         onTap()
                     } else {
-                        val (screenW, screenH) = screenSize
-                        onRightEdge = params.x + ringSize / 2 > screenW / 2
-                        yFraction = (params.y + ringSize / 2f) / screenH
+                        val safe = safeArea
+                        onRightEdge = params.x + ringSize / 2 > safe.centerX()
+                        yFraction = (params.y + ringSize / 2f - safe.top) / maxOf(1, safe.height())
                         placeOverlay()
                     }
                     true
@@ -414,7 +432,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-        }
+        }.inScreenCoordinates()
 
         overlayView = overlay
         button = img
@@ -444,7 +462,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         val ring = HoldRingView(this).apply { visibility = View.GONE }
         val ringParams = WindowManager.LayoutParams(
             ringSize, ringSize, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, untouchable, PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP or Gravity.START }
+        ).apply { gravity = Gravity.TOP or Gravity.START }.inScreenCoordinates()
 
         val discardSize = (DISCARD_DP * dp).toInt()
         val discard = TextView(this).apply {
@@ -462,7 +480,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             // Starts hidden, so untouchable; setDiscardVisible switches both.
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP or Gravity.START }
+        ).apply { gravity = Gravity.TOP or Gravity.START }.inScreenCoordinates()
 
         val glow = EdgeGlowView(this).apply { visibility = View.GONE }
         val glowParams = WindowManager.LayoutParams(
@@ -483,7 +501,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
         val menuParams = WindowManager.LayoutParams(
             menuSize, menuSize, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, untouchable, PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP or Gravity.START }
+        ).apply { gravity = Gravity.TOP or Gravity.START }.inScreenCoordinates()
 
         holdRing = ring; holdRingParams = ringParams
         discardView = discard; discardParams = discardLp
@@ -600,13 +618,17 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun isKeyboardVisible(): Boolean =
         windows?.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } == true
 
-    /** Snap the button to its edge at its relative height, for the current screen size. */
+    /**
+     * Snap the button to its edge at its relative height, inside the [safeArea]: in landscape the
+     * navigation bar sits at the side, and the button stays clear of it.
+     */
     private fun positionOverlay(params: WindowManager.LayoutParams) {
-        val (screenW, screenH) = screenSize
+        val safe = safeArea
         val ringSize = (RING_DP * dp).toInt()
         val margin = (MARGIN_DP * dp).toInt()
-        params.x = if (onRightEdge) screenW - ringSize - margin else margin
-        params.y = (yFraction * screenH - ringSize / 2f).toInt().coerceIn(margin, maxOf(margin, screenH - ringSize - margin))
+        params.x = if (onRightEdge) safe.right - ringSize - margin else safe.left + margin
+        params.y = (safe.top + yFraction * safe.height() - ringSize / 2f).toInt()
+            .coerceIn(safe.top + margin, maxOf(safe.top + margin, safe.bottom - ringSize - margin))
     }
 
     private fun placeOverlay() {
@@ -669,20 +691,20 @@ class WhisperAccessibilityService : AccessibilityService() {
         bubbleParams: WindowManager.LayoutParams
     ) {
         val view = feedbackView ?: return
-        val (screenW, _) = screenSize
+        val safe = safeArea
         val margin = (MARGIN_DP * dp).toInt()
-        view.maxWidth = (screenW * 0.8f).toInt()
+        view.maxWidth = (safe.width() * 0.8f).toInt()
         view.measure(
-            View.MeasureSpec.makeMeasureSpec(screenW - 2 * margin, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(safe.width() - 2 * margin, View.MeasureSpec.AT_MOST),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
         val buttonCenterY = bubbleParams.y + (RING_DP * dp).toInt() / 2
         val ringRadius = (HOLD_RING_DP * dp).toInt() / 2
         val gap = (FEEDBACK_GAP_DP * dp).toInt()
         val above = buttonCenterY - ringRadius - gap - view.measuredHeight
-        feedbackParams.x = if (onRightEdge) screenW - margin - view.measuredWidth else margin
+        feedbackParams.x = if (onRightEdge) safe.right - margin - view.measuredWidth else safe.left + margin
         // Near the top of the screen there is no room above: show it below the ring instead.
-        feedbackParams.y = if (above >= margin) above else buttonCenterY + ringRadius + gap
+        feedbackParams.y = if (above >= safe.top + margin) above else buttonCenterY + ringRadius + gap
     }
 
     private fun showFeedback(text: String, durationMs: Long = 2000) {
@@ -789,10 +811,10 @@ class WhisperAccessibilityService : AccessibilityService() {
             }
         }
         val bubble = layoutParams ?: return
-        val (_, screenH) = screenSize
+        val safe = safeArea
         val cy = bubble.y + (RING_DP * dp) / 2
         val reach = menu.radius + RadialMenuView.CHIP_DP * dp
-        val tilt = RadialMenu.tilt(roomAbove = cy, roomBelow = screenH - cy, reach = reach)
+        val tilt = RadialMenu.tilt(roomAbove = cy - safe.top, roomBelow = safe.bottom - cy, reach = reach)
         menu.angles = RadialMenu.angles(arcChoices.size, onRightEdge, tilt)
         menu.highlighted = -1
         menu.alpha = 0f

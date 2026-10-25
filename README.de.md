@@ -33,7 +33,7 @@ Mit Phone Whisper sprichst du in fast jede App, ohne die Tastatur zu wechseln. T
 - Im Halbkreis gibt es außerdem **+** (öffnet die Sprachliste) und **⚙** (öffnet die Einstellungen). Loslassen darauf verwirft die Aufnahme.
 
 **Der Button**
-- Erscheint **nur bei offener Tastatur** (Standard) oder immer. Er lässt sich an beide Bildschirmränder ziehen und bleibt beim Drehen dort.
+- Erscheint **nur bei offener Tastatur** (Standard) oder immer. Er lässt sich an beide Bildschirmränder ziehen und bleibt beim Drehen dort, immer außerhalb der Statusleiste und der Navigationstasten (auch im Querformat, wo diese seitlich liegen).
 - **Tippen**: diktieren (rot während der Aufnahme). **Halten**: diktieren mit KI-Glättung (violett während der Aufnahme).
 - Pegelbalken während der Aufnahme und ein Ladekreis während der Transkription.
 - Geht etwas schief (kein Netz, falscher Schlüssel, kein Guthaben …), wird er **orange**: Antippen wiederholt dieselbe Aufnahme, das **✕** daneben verwirft sie.

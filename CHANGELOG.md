@@ -2,6 +2,11 @@
 
 All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the last version of the [original app](https://github.com/kafkasl/phone-whisper) by Pol Alvarez.
 
+## 1.1.1 – 2026-10-25
+
+### Fixed
+- In landscape the button could sit on top of the navigation buttons (back, home, recents) at the side of the screen. The button, its messages and the language arc now stay inside the area without the status bar, navigation bar and display cutouts, in every orientation.
+
 ## 1.1.0 – 2026-10-25
 
 ### Translation

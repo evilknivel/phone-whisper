@@ -33,7 +33,7 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 - The arc also has **+** (opens the language list) and **⚙** (opens the settings). Letting go on them drops the recording.
 
 **The button**
-- Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge and stays there across rotation.
+- Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge and stays there across rotation, always clear of the status bar and the navigation buttons (also in landscape, where they sit at the side).
 - **Tap**: dictate (red while recording). **Hold**: dictate with AI cleanup (purple while recording).
 - Level bars while recording and a spinner while transcribing.
 - If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, or tap the **✕** next to it to discard it.
