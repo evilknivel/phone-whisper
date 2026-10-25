@@ -19,6 +19,8 @@ object Prefs {
     const val CANCEL_ON_SCREEN_OFF = "cancel_on_screen_off"
     const val HAPTICS = "haptics"
     const val EDGE_GLOW = "edge_glow"
+    /** Keep the screen on while recording and transcribing, so it doesn't time out mid-dictation. */
+    const val KEEP_SCREEN_ON = "keep_screen_on"
     const val PRESERVE_CLIPBOARD = "preserve_clipboard"
     const val TRIM_SILENCE = "trim_silence"
     const val NUM_THREADS = "num_threads"
@@ -72,6 +74,30 @@ object Prefs {
     fun SharedPreferences.cancelOnScreenOff() = getBoolean(CANCEL_ON_SCREEN_OFF, true)
     fun SharedPreferences.haptics() = getBoolean(HAPTICS, true)
     fun SharedPreferences.edgeGlow() = getBoolean(EDGE_GLOW, false)
+    fun SharedPreferences.keepScreenOn() = getBoolean(KEEP_SCREEN_ON, true)
+
+    /** Where the button sits: its screen edge and its height as a fraction of the usable screen height. */
+    data class ButtonPosition(val rightEdge: Boolean, val yFraction: Float)
+
+    private fun orientation(landscape: Boolean) = if (landscape) "landscape" else "portrait"
+
+    /**
+     * The position is kept per orientation, so turning the phone brings the button back to where
+     * it was in that orientation. Until it is placed in landscape, landscape uses the portrait spot.
+     */
+    fun SharedPreferences.buttonPosition(landscape: Boolean): ButtonPosition {
+        val o = orientation(landscape)
+        val fallback = if (landscape) buttonPosition(false) else ButtonPosition(rightEdge = true, yFraction = 0.5f)
+        return ButtonPosition(
+            getBoolean("button_right_edge_$o", fallback.rightEdge),
+            getFloat("button_y_$o", fallback.yFraction).coerceIn(0f, 1f),
+        )
+    }
+
+    fun SharedPreferences.Editor.putButtonPosition(landscape: Boolean, position: ButtonPosition): SharedPreferences.Editor {
+        val o = orientation(landscape)
+        return putBoolean("button_right_edge_$o", position.rightEdge).putFloat("button_y_$o", position.yFraction)
+    }
     fun SharedPreferences.preserveClipboard() = getBoolean(PRESERVE_CLIPBOARD, false)
     fun SharedPreferences.trimSilence() = getBoolean(TRIM_SILENCE, true)
     fun SharedPreferences.numThreads() = getInt(NUM_THREADS, LocalTranscriber.DEFAULT_THREADS)

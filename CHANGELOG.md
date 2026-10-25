@@ -2,6 +2,12 @@
 
 All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the last version of the [original app](https://github.com/kafkasl/phone-whisper) by Pol Alvarez.
 
+## 1.2.0 – 2026-10-25
+
+### Added
+- The screen no longer times out while you dictate or the text is being transcribed (*Button & insertion → Keep the screen on while dictating*, on by default).
+- The button remembers its position separately for portrait and landscape, and keeps it after a restart. Turning the phone brings it back to where you put it in that orientation; landscape starts from the portrait spot until you move it there.
+
 ## 1.1.1 – 2026-10-25
 
 ### Fixed

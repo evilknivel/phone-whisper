@@ -44,12 +44,15 @@ import com.evilknivel.phonewhisper.Prefs.cancelOnScreenOff
 import com.evilknivel.phonewhisper.Prefs.cleanupMode
 import com.evilknivel.phonewhisper.Prefs.edgeGlow
 import com.evilknivel.phonewhisper.Prefs.haptics
+import com.evilknivel.phonewhisper.Prefs.buttonPosition
 import com.evilknivel.phonewhisper.Prefs.idleReleaseMinutes
+import com.evilknivel.phonewhisper.Prefs.keepScreenOn
 import com.evilknivel.phonewhisper.Prefs.language
 import com.evilknivel.phonewhisper.Prefs.micSource
 import com.evilknivel.phonewhisper.Prefs.numThreads
 import com.evilknivel.phonewhisper.Prefs.overlayKeyboardOnly
 import com.evilknivel.phonewhisper.Prefs.preserveClipboard
+import com.evilknivel.phonewhisper.Prefs.putButtonPosition
 import com.evilknivel.phonewhisper.Prefs.translationLanguages
 import com.evilknivel.phonewhisper.Prefs.trimSilence
 import java.io.ByteArrayOutputStream
@@ -127,7 +130,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         }?.start()
     }
 
-    // The overlay remembers which edge it sits on and how far down, so it survives rotation.
+    // Edge and height of the button in the current orientation, read from [Prefs.buttonPosition].
     private var onRightEdge = true
     private var yFraction = 0.5f
 
@@ -212,6 +215,9 @@ class WhisperAccessibilityService : AccessibilityService() {
                 left += insets.left; top += insets.top; right -= insets.right; bottom -= insets.bottom
             }
         }
+
+    private fun isLandscape(): Boolean =
+        (getSystemService(WINDOW_SERVICE) as WindowManager).currentWindowMetrics.bounds.let { it.width() > it.height() }
 
     /** Overlay windows are placed in screen coordinates, the same ones [safeArea] uses. */
     private fun WindowManager.LayoutParams.inScreenCoordinates() = apply {
@@ -405,8 +411,11 @@ class WhisperAccessibilityService : AccessibilityService() {
                         onTap()
                     } else {
                         val safe = safeArea
-                        onRightEdge = params.x + ringSize / 2 > safe.centerX()
-                        yFraction = (params.y + ringSize / 2f - safe.top) / maxOf(1, safe.height())
+                        val position = Prefs.ButtonPosition(
+                            rightEdge = params.x + ringSize / 2 > safe.centerX(),
+                            yFraction = (params.y + ringSize / 2f - safe.top) / maxOf(1, safe.height()),
+                        )
+                        prefs().edit().putButtonPosition(isLandscape(), position).apply()
                         placeOverlay()
                     }
                     true
@@ -568,6 +577,16 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** The screen must not time out while the user dictates or waits for the text. */
+    private fun setKeepScreenOn(on: Boolean) {
+        val view = overlayView ?: return
+        val params = layoutParams ?: return
+        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        if ((params.flags and flag != 0) == on) return
+        params.flags = if (on) params.flags or flag else params.flags and flag.inv()
+        (getSystemService(WINDOW_SERVICE) as WindowManager).updateViewLayout(view, params)
+    }
+
     /** Like the button, the hidden discard window must not take touches meant for the app below. */
     private fun setDiscardVisible(visible: Boolean) {
         val view = discardView ?: return
@@ -620,9 +639,11 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     /**
      * Snap the button to its edge at its relative height, inside the [safeArea]: in landscape the
-     * navigation bar sits at the side, and the button stays clear of it.
+     * navigation bar sits at the side, and the button stays clear of it. Edge and height are
+     * stored per orientation (see [Prefs.buttonPosition]).
      */
     private fun positionOverlay(params: WindowManager.LayoutParams) {
+        prefs().buttonPosition(isLandscape()).let { onRightEdge = it.rightEdge; yFraction = it.yFraction }
         val safe = safeArea
         val ringSize = (RING_DP * dp).toInt()
         val margin = (MARGIN_DP * dp).toInt()
@@ -751,6 +772,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             visibility = if (state == State.RECORDING) View.VISIBLE else View.GONE
         }
         spinner?.visibility = if (state == State.TRANSCRIBING) View.VISIBLE else View.GONE
+        setKeepScreenOn((state == State.RECORDING || state == State.TRANSCRIBING) && prefs().keepScreenOn())
         languageBadge?.apply {
             val target = translateTo
             visibility = if (target != null && state != State.IDLE) View.VISIBLE else View.GONE

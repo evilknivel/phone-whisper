@@ -33,14 +33,14 @@ Mit Phone Whisper sprichst du in fast jede App, ohne die Tastatur zu wechseln. T
 - Im Halbkreis gibt es außerdem **+** (öffnet die Sprachliste) und **⚙** (öffnet die Einstellungen). Loslassen darauf verwirft die Aufnahme.
 
 **Der Button**
-- Erscheint **nur bei offener Tastatur** (Standard) oder immer. Er lässt sich an beide Bildschirmränder ziehen und bleibt beim Drehen dort, immer außerhalb der Statusleiste und der Navigationstasten (auch im Querformat, wo diese seitlich liegen).
+- Erscheint **nur bei offener Tastatur** (Standard) oder immer. Er lässt sich an beide Bildschirmränder ziehen. Hoch- und Querformat merken sich jeweils ihre eigene Position, beim Drehen kehrt er also dorthin zurück, wo du ihn in dieser Ausrichtung abgelegt hast. Er bleibt immer außerhalb der Statusleiste und der Navigationstasten (auch im Querformat, wo diese seitlich liegen).
 - **Tippen**: diktieren (rot während der Aufnahme). **Halten**: diktieren mit KI-Glättung (violett während der Aufnahme).
 - Pegelbalken während der Aufnahme und ein Ladekreis während der Transkription.
 - Geht etwas schief (kein Netz, falscher Schlüssel, kein Guthaben …), wird er **orange**: Antippen wiederholt dieselbe Aufnahme, das **✕** daneben verwirft sie.
 - Dein Daumen verdeckt den Button, deshalb gibt es Rückmeldung ohne Hinsehen: Ein **Ring, größer als der Button**, wächst beim Halten um ihn herum (violett für KI-Glättung, orange zum Verwerfen; er löst nach 0,8 s aus), und **unterschiedliche Vibrationen** markieren einen normalen Start (Klick), einen Start mit KI-Glättung (Doppelimpuls) und das Verwerfen (langes Brummen). Optional **leuchten die Bildschirmränder** während der Aufnahme rot oder violett (*Button & insertion → Glowing screen edge*).
 - Meldungen erscheinen über dem Daumen, oberhalb des Rings.
 - Eine **Kachel in den Schnelleinstellungen** (im Bearbeiten-Modus der Benachrichtigungsleiste *Phone Whisper* hinzufügen) öffnet die Einstellungen von überall; das ⚙ im Halbkreis ebenso.
-- Schaltest du den Bildschirm während der Aufnahme aus, wird sie abgebrochen.
+- Während du diktierst und der Text transkribiert wird, schaltet sich der Bildschirm nicht automatisch ab. Schaltest du ihn während der Aufnahme selbst aus, wird sie abgebrochen.
 
 **Text einfügen**
 - Nur ins fokussierte Feld, nie in ein anderes Feld auf dem Bildschirm.
@@ -102,7 +102,7 @@ Die Hauptseite enthält Status, Einrichtung, Transkription (Modus, deine Sprache
 | Seite | Einstellungen |
 |---|---|
 | **API keys** | Schlüssel für OpenAI und OpenRouter; Adresse und Schlüssel eines eigenen Servers. Schlüssel werden in ein verdecktes Feld eingegeben, das den gespeicherten Schlüssel nie zeigt und keine Screenshots zulässt. |
-| **Button & insertion** | Button nur mit Tastatur oder immer; Vibration; leuchtender Bildschirmrand während der Aufnahme (standardmäßig aus); Abbruch bei ausgeschaltetem Bildschirm; *Keep my clipboard* |
+| **Button & insertion** | Button nur mit Tastatur oder immer; Vibration; leuchtender Bildschirmrand während der Aufnahme (standardmäßig aus); Bildschirm beim Diktieren anlassen (standardmäßig an); Abbruch bei ausgeschaltetem Bildschirm; *Keep my clipboard* |
 | **Advanced** | CPU-Threads für lokale Modelle (Standard 4); Modellspeicher im Leerlauf freigeben (nie, 2–30 Min., Standard 5); Stille abschneiden (standardmäßig an); Mikrofonquelle (Spracherkennung oder normales Mikrofon) |
 
 Ganz unten zeigt **About** die installierte Version.
@@ -246,6 +246,7 @@ Apache License 2.0, siehe [LICENSE](LICENSE). Urheberrecht am ursprünglichen Co
 14. **Übersetzen**: Button halten und auf eine Zielsprache im Halbkreis schieben; das Glättungsmodell übersetzt, ohne Anbieter Whisper offline ins Englische; + und ⚙ im Halbkreis sowie eine Kachel in den Schnelleinstellungen öffnen die Einstellungen
 15. **Version 1.1.0**: Übersetzen und Einstellungs-Abkürzungen als stabiles Release und eine eigene App-ID dieses Forks, `com.evilknivel.phonewhisper`
 16. **Version 1.1.1**: Der Button bleibt außerhalb der Navigationsleiste, auch im Querformat (dank Feedback von Reddit)
+17. **Version 1.2.0**: Der Bildschirm bleibt beim Diktieren an, und der Button merkt sich seine Position getrennt für Hoch- und Querformat
 
 ## Unterstützen
 

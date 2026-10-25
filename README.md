@@ -33,14 +33,14 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 - The arc also has **+** (opens the language list) and **⚙** (opens the settings). Letting go on them drops the recording.
 
 **The button**
-- Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge and stays there across rotation, always clear of the status bar and the navigation buttons (also in landscape, where they sit at the side).
+- Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge. Portrait and landscape each remember their own spot, so turning the phone brings it back to where you put it in that orientation. It always stays clear of the status bar and the navigation buttons (also in landscape, where they sit at the side).
 - **Tap**: dictate (red while recording). **Hold**: dictate with AI cleanup (purple while recording).
 - Level bars while recording and a spinner while transcribing.
 - If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, or tap the **✕** next to it to discard it.
 - Your thumb covers the button, so the app also tells you without looking: a **ring larger than the button** grows around it while you hold it (purple for AI cleanup, orange for discarding; it triggers after 0.8 s), and **different vibrations** mark a normal start (click), a start with AI cleanup (double pulse) and discarding (long buzz). Optionally the **screen edges glow** red or purple while recording (*Button & insertion → Glowing screen edge*).
 - Messages appear above your thumb, above the ring.
 - A **Quick Settings tile** (add *Phone Whisper* in the notification shade's edit mode) opens the settings from anywhere; so does the ⚙ on the arc.
-- Turning the screen off while recording cancels the recording.
+- The screen doesn't time out while you dictate or the text is being transcribed. Turning it off yourself while recording cancels the recording.
 
 **Inserting text**
 - Only into the focused field, never into another field on the screen.
@@ -102,7 +102,7 @@ The main screen holds status, setup, transcription (mode, your language, models 
 | Page | Settings |
 |---|---|
 | **API keys** | OpenAI and OpenRouter keys; address and key of a custom server. Keys are entered in a masked field that never shows the saved key and can't be screenshotted. |
-| **Button & insertion** | Show the button only with a keyboard or always; vibration; glowing screen edge while recording (off by default); cancel on screen off; *Keep my clipboard* |
+| **Button & insertion** | Show the button only with a keyboard or always; vibration; glowing screen edge while recording (off by default); keep the screen on while dictating (on by default); cancel on screen off; *Keep my clipboard* |
 | **Advanced** | CPU threads for local models (default 4); free model memory when idle (never, 2–30 min, default 5); trim silence (default on); microphone source (speech recognition or standard microphone) |
 
 At the very bottom, **About** shows the installed version.
@@ -246,6 +246,7 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 14. **Translation**: hold the button and slide onto a target language on an arc; the cleanup model translates, or Whisper offline into English without a provider; + and ⚙ on the arc and a Quick Settings tile open the settings
 15. **Version 1.1.0**: translation and settings shortcuts as a stable release, and this fork's own app ID `com.evilknivel.phonewhisper`
 16. **Version 1.1.1**: the button stays clear of the navigation bar, also in landscape (thanks to feedback from Reddit)
+17. **Version 1.2.0**: the screen stays on while dictating, and the button remembers its spot separately for portrait and landscape
 
 ## Support
 

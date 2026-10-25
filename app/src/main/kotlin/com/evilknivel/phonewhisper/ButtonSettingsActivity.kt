@@ -34,6 +34,11 @@ class ButtonSettingsActivity : SettingsScreen() {
                 Prefs.EDGE_GLOW, false
             ))
             addView(switchRow(
+                "Keep the screen on while dictating",
+                "The screen doesn't time out while you speak or the text is transcribed",
+                Prefs.KEEP_SCREEN_ON, true
+            ))
+            addView(switchRow(
                 "Cancel when the screen turns off",
                 "Discards the recording, so audio from a pocket isn't transcribed",
                 Prefs.CANCEL_ON_SCREEN_OFF, true
