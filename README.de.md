@@ -10,7 +10,7 @@ Push-to-talk-Diktat für Android.
 
 Mit Phone Whisper sprichst du in fast jede App, ohne die Tastatur zu wechseln. Tippe auf den schwebenden Button, sprich, tippe noch einmal, und dein Text landet im gerade aktiven Textfeld, sofern die App ein normales Android-Eingabefeld verwendet.
 
-> **Dies ist ein Fork.** Phone Whisper wurde von **Pol Alvarez** ([@kafkasl](https://github.com/kafkasl)) unter [kafkasl/phone-whisper](https://github.com/kafkasl/phone-whisper) entwickelt. Die Idee, die ursprüngliche App und ihr Design stammen von ihm. Dieser Fork ergänzt Cloud-Anbieter, weitere Modelle, Sprachen und viele Korrekturen; mehrere Funktionen sind eigene Umsetzungen von Ideen aus offenen Pull Requests im Original-Repository. Alle Beteiligten stehen unter [Credits](#credits), und die [Entwicklungsgeschichte](#entwicklungsgeschichte) am Ende zeigt, was hier dazukam.
+> **Dies ist ein Fork.** Phone Whisper wurde von **Pol Alvarez** ([@kafkasl](https://github.com/kafkasl)) unter [kafkasl/phone-whisper](https://github.com/kafkasl/phone-whisper) entwickelt. Die Idee, die ursprüngliche App und ihr Design stammen von ihm. Dieser Fork von **evilknivel** ergänzt Cloud-Anbieter, weitere Modelle, Sprachen, Übersetzen und viele Korrekturen. Die Ideen dieses Forks stammen von evilknivel, mit Ausnahme der Funktionen aus offenen Pull Requests im Original-Repository, die ihren Autoren zugeschrieben sind. Alle Beteiligten stehen unter [Credits](#credits), und die [Entwicklungsgeschichte](#entwicklungsgeschichte) am Ende zeigt, was hier dazukam.
 
 ## Funktionen
 
@@ -194,7 +194,13 @@ Keiner dieser Pull Requests wurde hier als Code übernommen. Wir haben ihre Idee
 | **ArtificialTruth** | [#16](https://github.com/kafkasl/phone-whisper/pull/16) | Lokales Modell nach Inaktivität freigeben und bei Bedarf neu laden |
 | **Luc Brinkman** ([@lucbrinkman](https://github.com/lucbrinkman)) | [#14](https://github.com/kafkasl/phone-whisper/pull/14) | Hat eine Open-Source-Lizenz vorgeschlagen; das Original-Repository steht unter Apache 2.0 |
 
-**Dieser Fork:** evilknivel, mit [Claude Code](https://claude.ai/code).
+**Dieser Fork: evilknivel** ([@evilknivel](https://github.com/evilknivel)), umgesetzt mit [Claude Code](https://claude.ai/code). Jede Idee in diesem Fork, die oben nicht anderen zugeschrieben ist, stammt von evilknivel, darunter:
+- OpenRouter und eigene Server als Anbieter, die Modellauswahl aus der aktuellen Liste, getrennte Anbieter für Transkription und Glättung
+- Parakeet Ultra und die mehrsprachigen Whisper-Modelle, die Spracheinstellung, eine Glättung, die nie übersetzt
+- der Einrichtungsassistent, die Statuszeile, die sagt, was fehlt, die Einstellungen auf Unterseiten, die geschützte Eingabe der API-Schlüssel
+- Halten zum Diktieren mit KI-Glättung, der Halte-Ring in der Farbe des Modus, unterschiedliche Vibrationen, der leuchtende Bildschirmrand, Meldungen über dem Daumen, das ✕ zum Verwerfen
+- Übersetzen durch Schieben auf eine Sprache im Halbkreis, die Offline-Übersetzung ins Englische mit Whisper, die Abkürzungen + und ⚙ und die Kachel in den Schnelleinstellungen
+- die Dokumentation auf Englisch und Deutsch und die 1.x-Releases
 
 **Verwendete Software und Modelle**
 

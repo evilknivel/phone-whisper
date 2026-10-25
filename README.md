@@ -10,7 +10,7 @@ Push-to-talk dictation for Android.
 
 Phone Whisper lets you speak into most apps without switching keyboards. Tap the floating button, speak, tap again, and your text is inserted into the currently focused text field when the app exposes a standard Android input field.
 
-> **This is a fork.** Phone Whisper was created by **Pol Alvarez** ([@kafkasl](https://github.com/kafkasl)) at [kafkasl/phone-whisper](https://github.com/kafkasl/phone-whisper). The idea, the original app and its design are his. This fork adds cloud providers, more models, languages and many fixes; several features are our own implementations of ideas from open pull requests in the original repository. Everyone involved is named under [Credits](#credits), and the [development history](#development-history) at the end shows what was added here.
+> **This is a fork.** Phone Whisper was created by **Pol Alvarez** ([@kafkasl](https://github.com/kafkasl)) at [kafkasl/phone-whisper](https://github.com/kafkasl/phone-whisper). The idea, the original app and its design are his. This fork by **evilknivel** adds cloud providers, more models, languages, translation and many fixes. The ideas for this fork are evilknivel's, except for the features taken from open pull requests in the original repository, which are credited to their authors. Everyone involved is named under [Credits](#credits), and the [development history](#development-history) at the end shows what was added here.
 
 ## Features
 
@@ -194,7 +194,13 @@ None of these pull requests were merged here as code. We took their ideas and im
 | **ArtificialTruth** | [#16](https://github.com/kafkasl/phone-whisper/pull/16) | Releasing the local model after inactivity and loading it again on demand |
 | **Luc Brinkman** ([@lucbrinkman](https://github.com/lucbrinkman)) | [#14](https://github.com/kafkasl/phone-whisper/pull/14) | Proposed an open-source license; the original repository is licensed under Apache 2.0 |
 
-**This fork:** evilknivel, with [Claude Code](https://claude.ai/code).
+**This fork: evilknivel** ([@evilknivel](https://github.com/evilknivel)), implemented with [Claude Code](https://claude.ai/code). Every idea in this fork that is not credited above comes from evilknivel, among them:
+- OpenRouter and custom servers as providers, the live model pickers, separate providers for transcription and cleanup
+- Parakeet Ultra and the multilingual Whisper models, the language setting, cleanup that never translates
+- the setup assistant, the status line that names what is missing, the settings split into sub-pages, protected API key input
+- hold to dictate with AI cleanup, the hold ring in the color of the mode, distinct vibrations, the glowing screen edge, messages above the thumb, the ✕ to discard
+- translation by sliding onto a language on the arc, offline English translation with Whisper, the + and ⚙ shortcuts and the Quick Settings tile
+- the English and German documentation and the 1.x releases
 
 **Software and models used**
 
