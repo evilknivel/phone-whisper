@@ -102,7 +102,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val COLOR_RING = 0xFFE8EAED.toInt()
     }
 
-    /** RETRY: the last recording failed and is kept; tap retries it, the ✕ next to it (or a long press) discards it. */
+    /** RETRY: the recording (or, after a failed cleanup or translation, its transcript) is kept; tap retries, the ✕ next to it (or a long press) discards it. */
     private enum class State { IDLE, RECORDING, TRANSCRIBING, RETRY }
 
     @Volatile private var state = State.IDLE
@@ -136,6 +136,12 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     /** Audio of the last recording that could not be transcribed, kept for a retry. */
     @Volatile private var failedPcm: ByteArray? = null
+
+    /**
+     * Transcript whose cleanup or translation failed (network, key, provider error), kept for a
+     * retry of just that step. The untranslated or raw text is never inserted in its place.
+     */
+    @Volatile private var failedText: String? = null
 
     /**
      * Whether the current dictation (and its retry) is cleaned up by the chat model: always in
@@ -901,6 +907,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun discardFailed() {
         if (state != State.RETRY) return
         failedPcm = null
+        failedText = null
         vibrate(Haptic.DISCARD)
         enter(State.IDLE)
         showFeedback("Recording discarded")
@@ -941,6 +948,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         audioRecord = recorder
         pcmStream = stream
         failedPcm = null
+        failedText = null
         cleanupThisDictation = cleanup
         translateTo = null
         enter(State.RECORDING)
@@ -1002,6 +1010,13 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
 
     private fun retry() {
+        failedText?.let { text ->
+            failedText = null
+            enter(State.TRANSCRIBING)
+            showFeedback("Retrying...", 1200)
+            handleTranscriptionResult(text)
+            return
+        }
         val pcm = failedPcm ?: run { enter(State.IDLE); return }
         failedPcm = null
         enter(State.TRANSCRIBING)
@@ -1150,6 +1165,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     /** Show [message]. With [pcm], the recording is kept and the button offers a retry. */
     private fun fail(pcm: ByteArray?, message: String) {
         failedPcm = pcm
+        failedText = null
         if (pcm != null) {
             enter(State.RETRY)
             showFeedback("$message\nTap to retry, ✕ to discard", 5000)
@@ -1157,6 +1173,14 @@ class WhisperAccessibilityService : AccessibilityService() {
             enter(State.IDLE)
             showFeedback(message, 4000)
         }
+    }
+
+    /** Cleanup or translation of [text] failed: keep it and offer to retry that step, insert nothing. */
+    private fun failPostProcessing(text: String, message: String) {
+        failedPcm = null
+        failedText = text
+        enter(State.RETRY)
+        showFeedback("$message\nTap to retry, ✕ to discard", 6000)
     }
 
     /** Back to idle, optionally with a short message. */
@@ -1186,35 +1210,29 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
 
         PostProcessor.process(text, currentCleanupPrompt(), target) { result ->
-            handler.post {
-                if (result.text != null && result.text.isNotBlank()) {
-                    injectText(result.text)
-                } else {
-                    injectText(text, feedback = "Cleanup failed: ${ErrorMessages.cloud(result.error, null)}. Raw text used.")
-                }
-                finish()
+            if (result.text != null && result.text.isNotBlank()) {
+                handler.post { injectText(result.text); finish() }
+            } else {
+                failPostProcessing(text, "AI cleanup failed: ${ErrorMessages.cloud(result.error, null)}")
             }
         }
     }
 
-    /** The chat model cleans up and translates in one request; a failure inserts the original text. */
+    /**
+     * The chat model cleans up and translates in one request. If that fails, the untranslated text
+     * is kept for a retry instead of being inserted.
+     */
     private fun translate(text: String, language: String, target: CloudTarget) {
         if (!target.isConfigured) {
-            handler.post {
-                injectText(text, feedback = "Translation needs an AI cleanup provider. Original text used.")
-                finish()
-            }
+            failPostProcessing(text, "Translation needs an AI cleanup provider (API key)")
             return
         }
         val prompt = Translation.prompt(currentCleanupPrompt(), prefs().language(), language)
         PostProcessor.process(text, prompt, target) { result ->
-            handler.post {
-                if (result.text != null && result.text.isNotBlank()) {
-                    injectText(result.text)
-                } else {
-                    injectText(text, feedback = "Translation failed: ${ErrorMessages.cloud(result.error, null)}. Original text used.")
-                }
-                finish()
+            if (result.text != null && result.text.isNotBlank()) {
+                handler.post { injectText(result.text); finish() }
+            } else {
+                failPostProcessing(text, "Translation failed: ${ErrorMessages.cloud(result.error, null)}")
             }
         }
     }

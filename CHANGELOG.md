@@ -2,6 +2,11 @@
 
 All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the last version of the [original app](https://github.com/kafkasl/phone-whisper) by Pol Alvarez.
 
+## 1.2.1 – 2026-10-25
+
+### Changed
+- If the AI cleanup or a translation fails (no network, wrong key, provider error), the raw or untranslated text is no longer inserted. The button turns orange with the error message; a tap retries just the cleanup or translation with the kept transcript (for example after fixing the key), the ✕ discards it. A translation without a configured cleanup provider is handled the same way.
+
 ## 1.2.0 – 2026-10-25
 
 ### Added

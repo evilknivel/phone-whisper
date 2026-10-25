@@ -36,7 +36,7 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 - Shows **only while a keyboard is open** (default) or always. It can be dragged to either edge. Portrait and landscape each remember their own spot, so turning the phone brings it back to where you put it in that orientation. It always stays clear of the status bar and the navigation buttons (also in landscape, where they sit at the side).
 - **Tap**: dictate (red while recording). **Hold**: dictate with AI cleanup (purple while recording).
 - Level bars while recording and a spinner while transcribing.
-- If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, or tap the **✕** next to it to discard it.
+- If something fails (no network, wrong key, no credit …), it turns **orange**: tap to retry the same recording, or tap the **✕** next to it to discard it. If only the AI cleanup or translation fails, the transcript is kept and a tap retries just that step: the raw or untranslated text is never inserted instead.
 - Your thumb covers the button, so the app also tells you without looking: a **ring larger than the button** grows around it while you hold it (purple for AI cleanup, orange for discarding; it triggers after 0.8 s), and **different vibrations** mark a normal start (click), a start with AI cleanup (double pulse) and discarding (long buzz). Optionally the **screen edges glow** red or purple while recording (*Button & insertion → Glowing screen edge*).
 - Messages appear above your thumb, above the ring.
 - A **Quick Settings tile** (add *Phone Whisper* in the notification shade's edit mode) opens the settings from anywhere; so does the ⚙ on the arc.
@@ -247,6 +247,7 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 15. **Version 1.1.0**: translation and settings shortcuts as a stable release, and this fork's own app ID `com.evilknivel.phonewhisper`
 16. **Version 1.1.1**: the button stays clear of the navigation bar, also in landscape (thanks to feedback from Reddit)
 17. **Version 1.2.0**: the screen stays on while dictating, and the button remembers its spot separately for portrait and landscape
+18. **Version 1.2.1**: a failed AI cleanup or translation offers a retry instead of inserting the raw text
 
 ## Support
 

@@ -12,8 +12,8 @@ android {
         applicationId = "com.evilknivel.phonewhisper"
         minSdk = 30
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.2.0"
+        versionCode = 16
+        versionName = "1.2.1"
 
         ndk { abiFilters += "arm64-v8a" }
     }
