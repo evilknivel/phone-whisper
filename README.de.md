@@ -239,3 +239,9 @@ Apache License 2.0, siehe [LICENSE](LICENSE). Urheberrecht am ursprünglichen Co
 13. **Version 1.0.0**: Dokumentation auf Englisch und Deutsch, Changelog, Leitfaden zum Mitmachen mit Aufruf an Übersetzer, eine About-Zeile mit der Version und das erste Release mit dem Release-Schlüssel dieses Forks
 14. **Übersetzen**: Button halten und auf eine Zielsprache im Halbkreis schieben; das Glättungsmodell übersetzt, ohne Anbieter Whisper offline ins Englische; + und ⚙ im Halbkreis sowie eine Kachel in den Schnelleinstellungen öffnen die Einstellungen
 15. **Version 1.1.0**: Übersetzen und Einstellungs-Abkürzungen als stabiles Release und eine eigene App-ID dieses Forks, `com.evilknivel.phonewhisper`
+
+## Unterstützen
+
+Wenn dir Phone Whisper Tipparbeit spart, kannst du mir einen Kaffee für das Hirnschmalz spendieren, das in diesen Fork geflossen ist:
+
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-fmholzo-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/fmholzo)

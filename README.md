@@ -239,3 +239,9 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 13. **Version 1.0.0**: documentation in English and German, changelog, contribution guide with a call for translators, an About row with the version, and the first release signed with this fork's release key
 14. **Translation**: hold the button and slide onto a target language on an arc; the cleanup model translates, or Whisper offline into English without a provider; + and ⚙ on the arc and a Quick Settings tile open the settings
 15. **Version 1.1.0**: translation and settings shortcuts as a stable release, and this fork's own app ID `com.evilknivel.phonewhisper`
+
+## Support
+
+If Phone Whisper saves you typing, you can buy me a coffee for the brainpower that went into this fork:
+
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-fmholzo-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/fmholzo)
