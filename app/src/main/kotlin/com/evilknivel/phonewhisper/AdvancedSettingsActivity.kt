@@ -34,6 +34,12 @@ class AdvancedSettingsActivity : SettingsScreen() {
                     "after a pause can take a few seconds longer."
             ))
 
+            addView(switchRow(
+                "Transcribe while you speak",
+                "Each part is transcribed after a pause while you keep talking, so the text is ready sooner. Needs \"Trim silence\"",
+                Prefs.LIVE_TRANSCRIPTION, true
+            ))
+
             addView(sectionHeader("Audio"))
             addView(switchRow(
                 "Trim silence",

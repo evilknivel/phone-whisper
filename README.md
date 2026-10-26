@@ -19,6 +19,7 @@ Phone Whisper lets you speak into most apps without switching keyboards. Tap the
 - **Cloud** with OpenAI, [OpenRouter](https://openrouter.ai) (any speech-to-text model there), or your own **OpenAI-compatible server** (Groq, a Whisper server on your computer). The model is selectable per provider, from the provider's live model list.
 - **Languages**: Parakeet 0.6B and Ultra understand 25 European languages including German, Whisper 99 languages. A **Your language** setting (default: detect automatically) fixes the spoken language for Whisper and the cloud.
 - **Silence trimming** with Silero VAD before transcribing: faster, cheaper, and no invented text for silent stretches. If no speech is detected, nothing is sent; tapping retry sends the untrimmed recording.
+- **Transcribe while you speak** (local models): whenever you pause, the part before the pause is already transcribed while you keep talking. After you stop, only the last part is left, so long dictations are ready almost as fast as short ones.
 
 **AI cleanup (optional)**
 - A chat model (OpenAI, OpenRouter or your own server) fixes punctuation, grammar and obvious recognition errors. It keeps your language and never translates.
@@ -103,7 +104,7 @@ The main screen holds status, setup, transcription (mode, your language, models 
 |---|---|
 | **API keys** | OpenAI and OpenRouter keys; address and key of a custom server. Keys are entered in a masked field that never shows the saved key and can't be screenshotted. |
 | **Button & insertion** | Show the button only with a keyboard or always; vibration; glowing screen edge while recording (off by default); keep the screen on while dictating (on by default); cancel on screen off; *Keep my clipboard* |
-| **Advanced** | CPU threads for local models (default 4); free model memory when idle (never, 2–30 min, default 5); trim silence (default on); microphone source (speech recognition or standard microphone) |
+| **Advanced** | CPU threads for local models (default 4); free model memory when idle (never, 2–30 min, default 5); transcribe while you speak (default on); trim silence (default on); microphone source (speech recognition or standard microphone) |
 
 At the very bottom, **About** shows the installed version.
 

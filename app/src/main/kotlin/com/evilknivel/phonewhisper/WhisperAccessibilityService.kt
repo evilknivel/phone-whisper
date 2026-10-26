@@ -48,6 +48,7 @@ import com.evilknivel.phonewhisper.Prefs.buttonPosition
 import com.evilknivel.phonewhisper.Prefs.idleReleaseMinutes
 import com.evilknivel.phonewhisper.Prefs.keepScreenOn
 import com.evilknivel.phonewhisper.Prefs.language
+import com.evilknivel.phonewhisper.Prefs.liveTranscription
 import com.evilknivel.phonewhisper.Prefs.micSource
 import com.evilknivel.phonewhisper.Prefs.numThreads
 import com.evilknivel.phonewhisper.Prefs.overlayKeyboardOnly
@@ -170,6 +171,9 @@ class WhisperAccessibilityService : AccessibilityService() {
     @Volatile private var localTranscriber: LocalTranscriber? = null
     private val pendingLoads = AtomicInteger()
     private val modelLoading get() = pendingLoads.get() > 0
+
+    /** Transcribes the current local dictation in parts while it is recorded (see [LiveSegmenter]). */
+    @Volatile private var liveSegmenter: LiveSegmenter? = null
 
     private val trimmerLock = Any()
     private var silenceTrimmer: SilenceTrimmer? = null
@@ -899,6 +903,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             state = State.TRANSCRIBING
             releaseRecorder()
             pcmStream = null
+            cancelLiveSegmenter()
             enter(State.IDLE)
         }
         startActivity(Intent(this, screen).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
@@ -958,12 +963,15 @@ class WhisperAccessibilityService : AccessibilityService() {
         if (prefs().getBoolean("use_local", true) && localTranscriber == null && !modelLoading) reloadModel()
 
         recorderThread = thread {
+            val segmenter = createLiveSegmenter()
+            liveSegmenter = segmenter
             val buf = ByteArray(bufSize)
             var lastLevelAt = 0L
             while (state == State.RECORDING) {
                 val n = recorder.read(buf, 0, buf.size)
                 if (n > 0) {
                     stream.write(buf, 0, n)
+                    segmenter?.feed(pcmToFloats(buf.copyOf(n)))
                     val now = System.currentTimeMillis()
                     if (now - lastLevelAt >= LEVEL_UPDATE_MS) {
                         lastLevelAt = now
@@ -973,6 +981,32 @@ class WhisperAccessibilityService : AccessibilityService() {
                 } else if (n < 0) break
             }
         }
+    }
+
+    /**
+     * Local dictations with silence trimming are transcribed in parts while recording, unless that
+     * is switched off. Created on the recorder thread (loading the VAD takes a moment).
+     */
+    private fun createLiveSegmenter(): LiveSegmenter? {
+        if (!prefs().getBoolean("use_local", true) || !prefs().trimSilence() || !prefs().liveTranscription()) return null
+        if (LocalTranscriber.availableModels(this).isEmpty()) return null
+        val vad = SilenceTrimmer.createVad(SilenceTrimmer.modelFile(this), minSilence = LiveSegmenter.PAUSE_S) ?: return null
+        return LiveSegmenter(vad) { part ->
+            try {
+                // Queued behind a model load, like a whole recording.
+                modelExecutor.submit<String?> {
+                    synchronized(transcriberLock) { localTranscriber?.transcribe(part, SAMPLE_RATE) }
+                }
+            } catch (_: java.util.concurrent.RejectedExecutionException) {
+                java.util.concurrent.CompletableFuture.completedFuture(null)
+            }
+        }
+    }
+
+    /** Drop the parts of a dictation that won't be transcribed. */
+    private fun cancelLiveSegmenter() {
+        liveSegmenter?.cancel()
+        liveSegmenter = null
     }
 
     /** Stop the recorder, wait for the reader thread so the last buffer isn't lost, and free it. */
@@ -992,9 +1026,34 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         val pcm = pcmStream?.toByteArray() ?: ByteArray(0)
         pcmStream = null
+        val segmenter = liveSegmenter
+        liveSegmenter = null
 
-        if (pcm.isEmpty()) { finish("No audio captured"); return }
-        thread { transcribe(pcm, trim = prefs().trimSilence()) }
+        if (pcm.isEmpty()) { segmenter?.cancel(); finish("No audio captured"); return }
+        thread {
+            if (segmenter != null && !whisperTranslates()) transcribeLive(segmenter, pcm)
+            else { segmenter?.cancel(); transcribe(pcm, trim = prefs().trimSilence()) }
+        }
+    }
+
+    /**
+     * Runs on a worker thread: waits for the parts transcribed while recording plus the last one.
+     * If a part failed, the whole recording goes through the normal path, which reports the error.
+     */
+    private fun transcribeLive(segmenter: LiveSegmenter, pcm: ByteArray) {
+        val t0 = System.currentTimeMillis()
+        val earlyParts = segmenter.partCount
+        when (val result = segmenter.finish()) {
+            is LiveSegmenter.Result.Text -> {
+                Log.i(TAG, "Live transcription: ${result.parts} part(s), $earlyParts while recording, ${System.currentTimeMillis() - t0}ms after stop")
+                handleTranscriptionResult(result.text)
+            }
+            LiveSegmenter.Result.NoSpeech -> fail(pcm, "No speech detected")
+            LiveSegmenter.Result.Failed -> {
+                Log.w(TAG, "Live transcription failed, transcribing the whole recording")
+                transcribe(pcm, trim = true)
+            }
+        }
     }
 
     /** Screen turned off while recording: drop the audio so a pocket recording isn't sent anywhere. */
@@ -1004,6 +1063,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             state = State.TRANSCRIBING
             releaseRecorder()
             pcmStream = null
+            cancelLiveSegmenter()
             enter(State.IDLE)
             showFeedback("Recording cancelled: screen turned off", 3000)
         }

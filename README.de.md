@@ -19,6 +19,7 @@ Mit Phone Whisper sprichst du in fast jede App, ohne die Tastatur zu wechseln. T
 - **Cloud** mit OpenAI, [OpenRouter](https://openrouter.ai) (jedes Spracherkennungsmodell dort) oder deinem eigenen **OpenAI-kompatiblen Server** (Groq, ein Whisper-Server auf deinem Rechner). Das Modell ist je Anbieter wählbar, aus der aktuellen Modellliste des Anbieters.
 - **Sprachen**: Parakeet 0.6B und Ultra verstehen 25 europäische Sprachen inklusive Deutsch, Whisper 99 Sprachen. Die Einstellung **Your language** (Standard: automatisch erkennen) legt die gesprochene Sprache für Whisper und die Cloud fest.
 - **Stille abschneiden** mit Silero VAD vor der Transkription: schneller, günstiger und keine erfundenen Sätze bei Stille. Wird keine Sprache erkannt, wird nichts gesendet; „Wiederholen“ sendet die ungekürzte Aufnahme.
+- **Transkribieren beim Sprechen** (lokale Modelle): Sobald du eine Pause machst, wird der Teil davor schon transkribiert, während du weitersprichst. Nach dem Stoppen bleibt nur der letzte Teil übrig, lange Diktate sind also fast so schnell fertig wie kurze.
 
 **KI-Glättung (optional)**
 - Ein Sprachmodell (OpenAI, OpenRouter oder dein eigener Server) korrigiert Satzzeichen, Grammatik und offensichtliche Erkennungsfehler. Es behält deine Sprache bei und übersetzt nie.
@@ -103,7 +104,7 @@ Die Hauptseite enthält Status, Einrichtung, Transkription (Modus, deine Sprache
 |---|---|
 | **API keys** | Schlüssel für OpenAI und OpenRouter; Adresse und Schlüssel eines eigenen Servers. Schlüssel werden in ein verdecktes Feld eingegeben, das den gespeicherten Schlüssel nie zeigt und keine Screenshots zulässt. |
 | **Button & insertion** | Button nur mit Tastatur oder immer; Vibration; leuchtender Bildschirmrand während der Aufnahme (standardmäßig aus); Bildschirm beim Diktieren anlassen (standardmäßig an); Abbruch bei ausgeschaltetem Bildschirm; *Keep my clipboard* |
-| **Advanced** | CPU-Threads für lokale Modelle (Standard 4); Modellspeicher im Leerlauf freigeben (nie, 2–30 Min., Standard 5); Stille abschneiden (standardmäßig an); Mikrofonquelle (Spracherkennung oder normales Mikrofon) |
+| **Advanced** | CPU-Threads für lokale Modelle (Standard 4); Modellspeicher im Leerlauf freigeben (nie, 2–30 Min., Standard 5); Transkribieren beim Sprechen (standardmäßig an); Stille abschneiden (standardmäßig an); Mikrofonquelle (Spracherkennung oder normales Mikrofon) |
 
 Ganz unten zeigt **About** die installierte Version.
 

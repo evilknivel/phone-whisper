@@ -86,6 +86,42 @@ class LocalTranscriberIntegrationTest {
         }
     }
 
+    /** Speech, pause, speech, pause, speech: parts go out at the pauses while audio is still fed. */
+    @Test fun `live segmenter transcribes in parts at pauses`() {
+        val modelsDir = System.getenv("PHONE_WHISPER_MODELS_DIR")?.let(::File)
+        val wav = System.getenv("PHONE_WHISPER_TEST_WAV")?.let(::File)
+        assumeTrue(System.getenv("SHERPA_JNI_DIR") != null && modelsDir != null && wav != null)
+
+        val (raw, rate) = readWav(wav!!)
+        val speech = resampleTo16k(raw, rate)
+        val pause = FloatArray(16000)
+        val audio = pause + speech + pause + speech + pause + speech + pause
+
+        val model = MODEL_CATALOG.first { it.name == "Parakeet 0.6B" }
+        val transcriber = LocalTranscriber.create(File(modelsDir, model.archive), 2)!!
+        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val vad = SilenceTrimmer.createVad(File("src/main/assets/silero_vad.onnx"), LiveSegmenter.PAUSE_S)!!
+        try {
+            val segmenter = LiveSegmenter(vad) { part -> executor.submit<String?> { transcriber.transcribe(part, 16000) } }
+            // Fed in 100 ms chunks, like the recorder.
+            var i = 0
+            var partsWhileFeeding = 0
+            while (i < audio.size) {
+                segmenter.feed(audio.copyOfRange(i, minOf(audio.size, i + 1600)))
+                i += 1600
+                if (i < audio.size - 16000) partsWhileFeeding = segmenter.partCount
+            }
+            val result = segmenter.finish() as LiveSegmenter.Result.Text
+            println("Live: ${result.parts} parts (${partsWhileFeeding} before the end): ${result.text}")
+            assertTrue("parts start before the recording ends", partsWhileFeeding >= 2)
+            assertTrue("one part per phrase at least", result.parts >= 3)
+            assertEquals(6, Regex("your country", RegexOption.IGNORE_CASE).findAll(result.text).count())
+        } finally {
+            executor.shutdown()
+            transcriber.release()
+        }
+    }
+
     @Test fun `silence trimmer cuts pauses and keeps the speech`() {
         val modelsDir = System.getenv("PHONE_WHISPER_MODELS_DIR")?.let(::File)
         val wav = System.getenv("PHONE_WHISPER_TEST_WAV")?.let(::File)

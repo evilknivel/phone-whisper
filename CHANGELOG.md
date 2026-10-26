@@ -4,6 +4,9 @@ All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the
 
 ## Unreleased
 
+### Added
+- Transcribe while you speak (local models): Silero VAD watches the recording, and after a pause following at least 3 s of speech that part is transcribed in the background while you keep talking. After you stop, only the last part is left, so the wait no longer grows with the length of the dictation. On by default (*Advanced → Transcribe while you speak*, needs *Trim silence*). Ported from evilknivel's InstantSTT for Windows.
+
 ### Changed
 - Setup assistant, accessibility step: the steps are numbered and in the order Android needs them: first allow restricted settings in App info (for APKs installed from a file), then turn on the service.
 

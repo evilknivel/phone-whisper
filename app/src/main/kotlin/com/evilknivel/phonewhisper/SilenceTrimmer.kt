@@ -48,13 +48,19 @@ class SilenceTrimmer private constructor(private val vad: Vad) {
         private const val GAP_S = 0.2f
         private const val ASSET = "silero_vad.onnx"
 
-        fun create(modelFile: File): SilenceTrimmer? = try {
+        fun create(modelFile: File): SilenceTrimmer? = createVad(modelFile)?.let(::SilenceTrimmer)
+
+        /**
+         * A Silero VAD with the app's settings. It reports a speech segment once a pause of
+         * [minSilence] seconds follows it, or after 30 s of speech without one.
+         */
+        fun createVad(modelFile: File, minSilence: Float = 0.5f): Vad? = try {
             val config = VadModelConfig(
                 sileroVadModelConfig = SileroVadModelConfig(
                     model = modelFile.absolutePath,
                     // A little more sensitive than the default, so quiet words aren't cut.
                     threshold = 0.4f,
-                    minSilenceDuration = 0.5f,
+                    minSilenceDuration = minSilence,
                     minSpeechDuration = 0.1f,
                     windowSize = WINDOW,
                     maxSpeechDuration = 30f,
@@ -62,7 +68,7 @@ class SilenceTrimmer private constructor(private val vad: Vad) {
                 sampleRate = SAMPLE_RATE,
                 numThreads = 1,
             )
-            SilenceTrimmer(Vad(assetManager = null, config = config))
+            Vad(assetManager = null, config = config)
         } catch (e: Throwable) {
             Log.e(TAG, "Could not load VAD: ${e.message}")
             null

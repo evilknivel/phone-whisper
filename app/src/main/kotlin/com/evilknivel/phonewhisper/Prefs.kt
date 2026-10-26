@@ -23,6 +23,8 @@ object Prefs {
     const val KEEP_SCREEN_ON = "keep_screen_on"
     const val PRESERVE_CLIPBOARD = "preserve_clipboard"
     const val TRIM_SILENCE = "trim_silence"
+    /** Local models transcribe each part of a dictation after a pause, while the user keeps talking. */
+    const val LIVE_TRANSCRIPTION = "live_transcription"
     const val NUM_THREADS = "num_threads"
 
     /** Minutes without dictation before the local model is unloaded; 0 = never. */
@@ -100,6 +102,7 @@ object Prefs {
     }
     fun SharedPreferences.preserveClipboard() = getBoolean(PRESERVE_CLIPBOARD, false)
     fun SharedPreferences.trimSilence() = getBoolean(TRIM_SILENCE, true)
+    fun SharedPreferences.liveTranscription() = getBoolean(LIVE_TRANSCRIPTION, true)
     fun SharedPreferences.numThreads() = getInt(NUM_THREADS, LocalTranscriber.DEFAULT_THREADS)
     fun SharedPreferences.idleReleaseMinutes() = getInt(IDLE_RELEASE_MINUTES, 5)
     fun SharedPreferences.micSource() = getString(MIC_SOURCE, MIC_VOICE_RECOGNITION) ?: MIC_VOICE_RECOGNITION
