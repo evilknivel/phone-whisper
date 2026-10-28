@@ -91,6 +91,7 @@ Beim ersten Start erklärt ein **Einrichtungsassistent** die App und führt dich
 3. ein **Modell** (offline; er schlägt eines passend zur Sprache deines Handys vor und lädt es) oder einen **Cloud-Dienst mit API-Schlüssel** (online)
 4. die **KI-Glättung**: nur beim Halten, immer oder nie, dazu Dienst und Schlüssel
 5. die **Bedienungshilfe**: was sie sieht und warum, deine Zustimmung, dann der Reihe nach: eingeschränkte Einstellungen in der App-Info zulassen (bei APKs aus einer Datei) und den Dienst einschalten
+6. **Keep running**: die Einstellungen deines Handyherstellers, damit der Dienst Akkusparen und „Alles bereinigen“ in der App-Übersicht übersteht (siehe [unten](#dienst-am-laufen-halten))
 
 Du kannst ihn überspringen und alles selbst einstellen oder ihn unter **More settings → Setup assistant** erneut starten.
 
@@ -153,7 +154,23 @@ Phone Whisper funktioniert am besten in Apps mit normalen Android-Textfeldern. M
 
 **Termux:** Der Terminalbereich ist kein normales Textfeld. Wische über die Zusatztastenleiste (`ESC`, `CTRL`, `ALT`, …), um zum Texteingabefeld von Termux zu wechseln, und diktiere dort.
 
-**Xiaomi und andere Handys mit aggressivem Akkusparen:** Meldet der Status, der Bedienungshilfendienst sei „on, but not running“, schalte ihn aus und wieder ein und erlaube für Phone Whisper **Autostart** und **keine Akku-Einschränkungen**.
+## Dienst am Laufen halten
+
+Viele Hersteller beenden Apps im Hintergrund zusätzlich zu Androids eigenem Akkusparen, und „Alles bereinigen“ in der App-Übersicht beendet jede App, die nicht ausgenommen ist (bei Xiaomi: *OneKeyClean*). Android startet einen beendeten Bedienungshilfendienst nur neu, wenn das Handy die App wieder starten lässt. Sonst zeigen die Bedienungshilfen Phone Whisper als fehlerhaft an und der Status meldet „on, but not running“, bis du den Dienst aus- und wieder einschaltest.
+
+**Setup → Keep running** (auch ein Schritt des Einrichtungsassistenten) erkennt den Hersteller und öffnet die passenden Bildschirme, mit einem ✓, wo die App die Einstellung auslesen kann:
+
+| Hersteller | Was erlauben |
+|---|---|
+| Xiaomi, Redmi, POCO (HyperOS, MIUI) | Autostart; Akkusparmodus „Keine Einschränkungen“; App in der App-Übersicht sperren |
+| Samsung (One UI) | Akku „Nicht eingeschränkt“; unter *Apps, die nie in den Standby-Modus wechseln* eintragen |
+| Huawei, Honor | App-Start manuell verwalten (Autostart, sekundärer Start, im Hintergrund ausführen); Akkuoptimierung aus |
+| OPPO, realme, OnePlus (ColorOS) | Automatischer Start; Hintergrundaktivität erlauben; in der App-Übersicht sperren |
+| vivo, iQOO | Autostart und hohen Hintergrundverbrauch erlauben; in der App-Übersicht sperren |
+| ASUS, Meizu, Tecno, Infinix | Autostart bzw. Hintergrundbetrieb; Akku „Nicht eingeschränkt“ |
+| Alle anderen (Pixel, Motorola, Nokia, …) | Akku „Nicht eingeschränkt“ |
+
+Die Bildschirme der Hersteller sind keine öffentliche Schnittstelle und wandern zwischen Systemversionen; öffnet sich einer nicht, kommt stattdessen die App-Info. [dontkillmyapp.com](https://dontkillmyapp.com) beschreibt jeden Hersteller im Detail.
 
 ## Entwicklung
 
@@ -249,6 +266,7 @@ Apache License 2.0, siehe [LICENSE](LICENSE). Urheberrecht am ursprünglichen Co
 16. **Version 1.1.1**: Der Button bleibt außerhalb der Navigationsleiste, auch im Querformat (dank Feedback von Reddit)
 17. **Version 1.2.0**: Der Bildschirm bleibt beim Diktieren an, und der Button merkt sich seine Position getrennt für Hoch- und Querformat
 18. **Version 1.2.1**: Scheitert die KI-Glättung oder Übersetzung, gibt es einen Wiederholen-Knopf statt des eingefügten Rohtexts
+19. **Version 1.3.0**: Lokale Diktate werden schon während des Sprechens abschnittsweise transkribiert, und *Keep running* führt durch die Einstellungen des Handyherstellers (Xiaomi-Autostart und Co.), damit „Alles bereinigen“ den Bedienungshilfendienst nicht mehr lahmlegt
 
 ## Unterstützen
 

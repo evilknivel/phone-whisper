@@ -23,13 +23,14 @@ import java.util.Locale
 
 /**
  * First-run setup: explains the app, then walks through the microphone permission, offline or
- * online transcription, a model or a provider with its key, AI cleanup, and the accessibility
- * service (with the disclosure Google Play requires). Every choice is written to the same prefs
+ * online transcription, a model or a provider with its key, AI cleanup, the accessibility
+ * service (with the disclosure Google Play requires), and the phone maker's settings that keep it
+ * running. Every choice is written to the same prefs
  * the settings screens use, so the assistant can be run again at any time.
  */
 class SetupWizardActivity : SettingsScreen() {
 
-    private enum class Step { WELCOME, MICROPHONE, MODE, LOCAL_MODEL, CLOUD, CLEANUP, ACCESSIBILITY, DONE }
+    private enum class Step { WELCOME, MICROPHONE, MODE, LOCAL_MODEL, CLOUD, CLEANUP, ACCESSIBILITY, BACKGROUND, DONE }
 
     private var step = Step.WELCOME
 
@@ -98,6 +99,7 @@ class SetupWizardActivity : SettingsScreen() {
             Step.CLOUD -> cloud()
             Step.CLEANUP -> cleanup()
             Step.ACCESSIBILITY -> accessibility()
+            Step.BACKGROUND -> background()
             Step.DONE -> done()
         }
         refresh()
@@ -163,7 +165,8 @@ class SetupWizardActivity : SettingsScreen() {
                 "• Tap it, speak, tap again: your words appear in the text field.\n" +
                 "• Hold it instead to have an AI polish punctuation and grammar.\n\n" +
                 "This assistant sets up the microphone, where your speech is turned into text, " +
-                "optional AI cleanup, and the permission to insert text. It takes about two minutes."
+                "optional AI cleanup, the permission to insert text, and your phone's settings that keep " +
+                "Phone Whisper running. It takes about two minutes."
         ))
         addView(settingsRow("Skip setup", "Set everything up yourself in the settings") { finishSetup() })
     }
@@ -328,6 +331,11 @@ class SetupWizardActivity : SettingsScreen() {
                 else "Opens the accessibility settings: find \"Phone Whisper\" under installed apps and turn it on"
         }
         addView(open)
+    }
+
+    private fun background() = page("Keep running") {
+        addView(text(BackgroundSettingsActivity.BACKGROUND_INTRO))
+        addBackgroundSteps()
     }
 
     private fun done() = page("All set", nextLabel = "Finish") {

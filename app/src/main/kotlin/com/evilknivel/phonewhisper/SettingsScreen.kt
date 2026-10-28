@@ -156,6 +156,30 @@ abstract class SettingsScreen : AppCompatActivity() {
             setTextColor(attrColor(android.R.attr.textColorSecondary))
         }) { startActivity(Intent(this, screen)) }
 
+    /**
+     * The settings this phone's maker needs so the service survives "clear all" and battery
+     * saving (see [BackgroundSettings]), numbered, with a ✓ where the state can be read.
+     */
+    protected fun LinearLayout.addBackgroundSteps() {
+        val vendor = BackgroundSettings.vendor()
+        BackgroundSettings.steps(vendor, packageName).forEachIndexed { i, step ->
+            val row = settingsRow("${i + 1}. ${step.title}", "") { BackgroundSettings.open(this@SettingsScreen, step) }
+            val sub = row.subtitle()
+            onRefresh {
+                sub.visibility = View.VISIBLE
+                sub.text = if (step.status(this@SettingsScreen) == BackgroundSettings.Status.DONE) "✓ Done" else step.howTo
+            }
+            addView(row)
+        }
+        if (BackgroundSettings.hasRecentsLock(vendor)) {
+            addView(note(
+                "Also lock Phone Whisper in the recent apps: open this screen, open the recent apps, then " +
+                    "long-press (or swipe down on) Phone Whisper and tap the lock. \"Clear all\" then leaves it running."
+            ))
+        }
+        addView(note("Settings for ${vendor.label}. If a screen doesn't open, Phone Whisper's app info opens instead."))
+    }
+
     /** A short explanation under a group of rows. */
     protected fun note(text: String) = TextView(this).apply {
         this.text = text

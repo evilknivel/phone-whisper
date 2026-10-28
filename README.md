@@ -91,6 +91,7 @@ On first launch a **setup assistant** explains the app and walks you through:
 3. a **model** (offline; it suggests one for your phone's language and downloads it) or a **cloud service and API key** (online)
 4. **AI cleanup**: only when holding the button, always, or never, and the service and key for it
 5. the **Accessibility Service**: what it accesses and why, your agreement, then in order: allow restricted settings in App info (for APKs installed from a file) and turn on the service
+6. **Keep running**: the settings your phone's maker needs so the service survives battery saving and "clear all" in the recent apps (see [below](#keep-the-service-running))
 
 You can skip it and set everything up yourself, or run it again under **More settings → Setup assistant**.
 
@@ -153,7 +154,23 @@ Phone Whisper works best in apps that use standard Android text fields. Some app
 
 **Termux:** the terminal area is not a standard text field. Swipe the extra keys row (`ESC`, `CTRL`, `ALT`, …) to switch to Termux's native text input box and dictate there.
 
-**Xiaomi and other phones with aggressive battery saving:** if the status says the accessibility service is "on, but not running", turn it off and on again and allow **Autostart** and **no battery restrictions** for Phone Whisper.
+## Keep the service running
+
+Many phone makers stop apps in the background on top of Android's own battery saving, and "clear all" in the recent apps kills every app that isn't exempt (on Xiaomi: *OneKeyClean*). Android restarts a killed accessibility service only if the phone lets the app start again. Otherwise the accessibility settings show Phone Whisper as not working, and the status says "on, but not running", until you turn the service off and on.
+
+**Setup → Keep running** (also a step of the setup assistant) recognizes the maker and opens the right screens, with a ✓ where the app can read the setting:
+
+| Maker | What to allow |
+|---|---|
+| Xiaomi, Redmi, POCO (HyperOS, MIUI) | Autostart; Battery saver "No restrictions"; lock the app in the recent apps |
+| Samsung (One UI) | Battery "Unrestricted"; add it to *Never sleeping apps* |
+| Huawei, Honor | App launch: manage manually (auto-launch, secondary launch, run in background); battery optimization off |
+| OPPO, realme, OnePlus (ColorOS) | Auto launch; allow background activity; lock in recent apps |
+| vivo, iQOO | Auto start and high background power use; lock in recent apps |
+| ASUS, Meizu, Tecno, Infinix | Auto start / background running; battery "Unrestricted" |
+| Everything else (Pixel, Motorola, Nokia, …) | Battery "Unrestricted" |
+
+The makers' screens aren't public API and move between system versions; if one doesn't open, the app info opens instead. [dontkillmyapp.com](https://dontkillmyapp.com) has the details for each maker.
 
 ## Development
 
@@ -249,6 +266,7 @@ Apache License 2.0, see [LICENSE](LICENSE). Copyright of the original code: Pol 
 16. **Version 1.1.1**: the button stays clear of the navigation bar, also in landscape (thanks to feedback from Reddit)
 17. **Version 1.2.0**: the screen stays on while dictating, and the button remembers its spot separately for portrait and landscape
 18. **Version 1.2.1**: a failed AI cleanup or translation offers a retry instead of inserting the raw text
+19. **Version 1.3.0**: local dictations are transcribed in parts while you speak, and *Keep running* walks through the phone maker's settings (Xiaomi Autostart and the like) so "clear all" no longer leaves the accessibility service broken
 
 ## Support
 

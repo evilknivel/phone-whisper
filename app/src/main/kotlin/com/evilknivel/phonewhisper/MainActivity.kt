@@ -78,6 +78,10 @@ class MainActivity : SettingsScreen() {
             }
             accRowSub = accRow.subtitle()
             addView(accRow)
+            addView(navRow(
+                "Keep running", "Background and battery settings for ${BackgroundSettings.vendor().label}",
+                BackgroundSettingsActivity::class.java,
+            ))
 
             // --- Transcription ---
             addView(sectionHeader("Transcription"))
@@ -420,8 +424,9 @@ class MainActivity : SettingsScreen() {
         audioRowSub.text = if (audio) "Granted" else "Tap to grant permission"
         accRowSub.text = when (acc) {
             AccessibilityState.RUNNING -> "Enabled"
-            // The system killed the service (battery saver, app update) or blocked it (restricted settings).
-            AccessibilityState.ENABLED_NOT_RUNNING -> "On, but not running. Turn it off and on again; on Xiaomi also allow Autostart and no battery restrictions"
+            // The system killed the service (battery saver, "clear all", app update) and didn't let it
+            // restart, or blocked it (restricted settings).
+            AccessibilityState.ENABLED_NOT_RUNNING -> "On, but not running. Turn it off and on again, then check \"Keep running\" below so it doesn't happen again"
             AccessibilityState.OFF -> "Tap to enable in settings"
         }
 

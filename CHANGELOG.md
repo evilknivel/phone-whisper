@@ -2,13 +2,17 @@
 
 All notable changes to this fork. Versions before 1.0.0 were betas; 0.3.0 is the last version of the [original app](https://github.com/kafkasl/phone-whisper) by Pol Alvarez.
 
-## Unreleased
+## 1.3.0 – 2026-10-28
 
 ### Added
 - Transcribe while you speak (local models): Silero VAD watches the recording, and after a pause following at least 3 s of speech that part is transcribed in the background while you keep talking. After you stop, only the last part is left, so the wait no longer grows with the length of the dictation. On by default (*Advanced → Transcribe while you speak*, needs *Trim silence*). Ported from evilknivel's InstantSTT for Windows.
+- *Keep running* (main screen and a new step of the setup assistant): opens the settings the phone's maker needs so the accessibility service survives battery saving and "clear all" in the recent apps, for Xiaomi/Redmi/POCO, Samsung, Huawei, Honor, OPPO/realme/OnePlus, vivo/iQOO, ASUS, Meizu, Tecno/Infinix, and battery optimization elsewhere. Shows ✓ where the setting can be read (battery optimization, Xiaomi Autostart).
 
 ### Changed
 - Setup assistant, accessibility step: the steps are numbered and in the order Android needs them: first allow restricted settings in App info (for APKs installed from a file), then turn on the service.
+
+### Fixed
+- After "clear all" in the recent apps (e.g. HyperOS's OneKeyClean), the accessibility settings showed Phone Whisper as not working until it was turned off and on: the system killed it and, without Autostart, Android didn't restart it. *Keep running* now walks through the settings that prevent this, and "on, but not running" points there.
 
 ## 1.2.1 – 2026-10-25
 
